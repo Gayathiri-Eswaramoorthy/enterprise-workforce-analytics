@@ -100,6 +100,7 @@ export interface EmployeeListItem {
   employment_type: EmploymentType;
   work_mode: WorkMode;
   work_location: string;
+  overtime_frequency: string;
   date_of_joining: string;
   profile_photo_url?: string;
   manager_id?: string;
@@ -129,6 +130,7 @@ export interface EmployeeDetail {
   employment_type: EmploymentType;
   work_mode: WorkMode;
   work_location: string;
+  overtime_frequency: string;
   profile_photo_url?: string;
   is_deleted: boolean;
   department?: Department;

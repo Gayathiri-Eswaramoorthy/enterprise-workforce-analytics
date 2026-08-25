@@ -5,7 +5,7 @@ Employee schemas for request, response, search, and pagination.
 from datetime import date, datetime
 from uuid import UUID
 
-from app.database import EmploymentStatus, EmploymentType, Gender, WorkMode
+from app.database import EmploymentStatus, EmploymentType, Gender, OvertimeFrequency, WorkMode
 from app.schemas.department import DepartmentResponse
 from app.schemas.job_role import JobRoleResponse
 from app.schemas.skill import EmployeeSkillResponse
@@ -30,6 +30,7 @@ class EmployeeBase(BaseModel):
     employment_type: EmploymentType = EmploymentType.FULL_TIME
     work_mode: WorkMode = WorkMode.OFFICE
     work_location: str = Field(..., min_length=2, max_length=255)
+    overtime_frequency: OvertimeFrequency = OvertimeFrequency.NONE
     profile_photo_url: str | None = None
 
 
@@ -54,6 +55,7 @@ class EmployeeUpdate(BaseModel):
     employment_type: EmploymentType | None = None
     work_mode: WorkMode | None = None
     work_location: str | None = None
+    overtime_frequency: OvertimeFrequency | None = None
     profile_photo_url: str | None = None
 
 
@@ -73,6 +75,7 @@ class EmployeeListItem(BaseModel):
     employment_type: EmploymentType
     work_mode: WorkMode
     work_location: str
+    overtime_frequency: OvertimeFrequency
     date_of_joining: date
     profile_photo_url: str | None = None
     manager_id: UUID | None = None

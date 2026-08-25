@@ -6,7 +6,14 @@ import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 
-from app.database import BaseModel, EmploymentStatus, EmploymentType, Gender, WorkMode
+from app.database import (
+    BaseModel,
+    EmploymentStatus,
+    EmploymentType,
+    Gender,
+    OvertimeFrequency,
+    WorkMode,
+)
 from sqlalchemy import Date, DateTime, ForeignKey, String
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
@@ -130,6 +137,13 @@ class Employee(BaseModel):
         String(255),
         nullable=False,
         comment="Specific geographic office or location",
+    )
+    overtime_frequency: Mapped[OvertimeFrequency] = mapped_column(
+        SAEnum(OvertimeFrequency, name="overtime_frequency"),
+        nullable=False,
+        default=OvertimeFrequency.NONE,
+        server_default="NONE",
+        comment="Employee's overtime frequency (e.g. NONE, OCCASIONAL, FREQUENT)",
     )
 
     # Profile

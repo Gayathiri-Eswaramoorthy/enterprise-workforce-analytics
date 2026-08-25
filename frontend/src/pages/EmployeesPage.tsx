@@ -33,6 +33,7 @@ export const EmployeesPage: React.FC = () => {
     employment_type: "FULL_TIME",
     work_mode: "HYBRID",
     work_location: "San Francisco, CA",
+    overtime_frequency: "NONE",
   });
 
   const fetchEmployees = async () => {
@@ -351,6 +352,31 @@ export const EmployeesPage: React.FC = () => {
                     required
                     value={newEmp.phone_number}
                     onChange={(e) => setNewEmp({ ...newEmp, phone_number: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Overtime Frequency</label>
+                  <select
+                    value={newEmp.overtime_frequency}
+                    onChange={(e) => setNewEmp({ ...newEmp, overtime_frequency: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
+                  >
+                    <option value="NONE">None</option>
+                    <option value="OCCASIONAL">Occasional</option>
+                    <option value="FREQUENT">Frequent</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Work Location</label>
+                  <input
+                    type="text"
+                    required
+                    value={newEmp.work_location}
+                    onChange={(e) => setNewEmp({ ...newEmp, work_location: e.target.value })}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   />
                 </div>

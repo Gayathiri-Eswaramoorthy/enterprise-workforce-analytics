@@ -22,6 +22,7 @@ from app.database import (
     EmploymentType,
     EnrollmentStatus,
     Gender,
+    OvertimeFrequency,
     ReviewCycle,
     SessionLocal,
     TrainingMode,
@@ -33,7 +34,10 @@ from app.models import (
     Employee,
     EmployeeSkill,
     JobRole,
+    Notification,
     PerformanceReview,
+    PredictionHistory,
+    Recommendation,
     RoleSkill,
     Skill,
     TrainingCourse,
@@ -44,11 +48,428 @@ from app.models import (
 from app.security import hash_password
 
 
+def generate_50_employees():
+    import random
+    from datetime import date
+
+    rng = random.Random(42)
+
+    roles_by_dept = {
+        "ENG": ["SR-SWE", "LEAD-SWE", "ML-ENG", "FE-ENG"],
+        "PROD": ["SR-PM"],
+        "MKT": ["MKT-LEAD"],
+        "SALES": ["ENT-AE"],
+        "HR": ["HR-BP"],
+    }
+
+    dept_targets = {"ENG": 22, "PROD": 8, "MKT": 8, "SALES": 7, "HR": 5}
+
+    # Detemine OT, Emp Type, Work Mode arrays beforehand to ensure exact counts
+    frequent_indices = [48, 49, 50, 43, 44, 45, 46]
+    occasional_indices = [30, 31, 32, 33, 34, 35, 42, 47, 1, 3, 5, 7, 9, 11, 13]
+
+    contract_indices = [10, 20, 30, 40, 50]
+    parttime_indices = [15, 25, 35]
+
+    office_indices = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+    remote_indices = [2, 4, 6, 8, 12, 14, 16, 18, 22, 24, 26, 28, 32, 34, 36, 38]
+
+    first_names_male = [
+        "James",
+        "John",
+        "Robert",
+        "Michael",
+        "William",
+        "David",
+        "Richard",
+        "Joseph",
+        "Thomas",
+        "Charles",
+        "Christopher",
+        "Daniel",
+        "Matthew",
+        "Anthony",
+        "Mark",
+        "Donald",
+        "Steven",
+        "Paul",
+        "Andrew",
+        "Joshua",
+        "Kenneth",
+        "Kevin",
+        "Brian",
+        "George",
+        "Edward",
+    ]
+    first_names_female = [
+        "Mary",
+        "Patricia",
+        "Jennifer",
+        "Linda",
+        "Elizabeth",
+        "Barbara",
+        "Susan",
+        "Jessica",
+        "Sarah",
+        "Karen",
+        "Lisa",
+        "Nancy",
+        "Betty",
+        "Sandra",
+        "Margaret",
+        "Ashley",
+        "Kimberly",
+        "Emily",
+        "Donna",
+        "Michelle",
+        "Carol",
+        "Amanda",
+        "Dorothy",
+        "Melissa",
+        "Deborah",
+    ]
+    last_names = [
+        "Smith",
+        "Johnson",
+        "Williams",
+        "Brown",
+        "Jones",
+        "Garcia",
+        "Miller",
+        "Davis",
+        "Rodriguez",
+        "Martinez",
+        "Hernandez",
+        "Lopez",
+        "Gonzalez",
+        "Wilson",
+        "Anderson",
+        "Thomas",
+        "Taylor",
+        "Moore",
+        "Jackson",
+        "Martin",
+        "Lee",
+        "Perez",
+        "Thompson",
+        "White",
+        "Harris",
+        "Sanchez",
+        "Clark",
+        "Ramirez",
+        "Lewis",
+        "Robinson",
+    ]
+
+    employees = []
+    managers_by_dept = {}
+    emp_index = 1
+
+    for dept_code, target_count in dept_targets.items():
+        for i in range(target_count):
+            code = f"EMP-{dept_code}-{i+1:03d}"
+
+            gender = rng.choice([Gender.MALE, Gender.FEMALE])
+            first_name = (
+                rng.choice(first_names_male)
+                if gender == Gender.MALE
+                else rng.choice(first_names_female)
+            )
+            last_name = rng.choice(last_names)
+
+            if dept_code == "ENG" and i == 0:
+                role = "LEAD-SWE"
+            else:
+                role_options = roles_by_dept[dept_code]
+                role = rng.choice(role_options)
+
+            # Overtime frequency
+            if emp_index in frequent_indices:
+                ot = OvertimeFrequency.FREQUENT
+            elif emp_index in occasional_indices:
+                ot = OvertimeFrequency.OCCASIONAL
+            else:
+                ot = OvertimeFrequency.NONE
+
+            # Employment Type
+            if emp_index in contract_indices:
+                emp_type = EmploymentType.CONTRACT
+            elif emp_index in parttime_indices:
+                emp_type = EmploymentType.PART_TIME
+            else:
+                emp_type = EmploymentType.FULL_TIME
+
+            # Work Mode
+            if emp_index in office_indices:
+                mode = WorkMode.OFFICE
+            elif emp_index in remote_indices:
+                mode = WorkMode.REMOTE
+            else:
+                mode = WorkMode.HYBRID
+
+            # Risk Tier mapping
+            if emp_index in [48, 49, 50]:
+                risk_tier = "CRITICAL"
+            elif emp_index in [42, 43, 44, 45, 46, 47]:
+                risk_tier = "HIGH"
+            elif emp_index in [30, 31, 32, 33, 34, 35]:
+                risk_tier = "MEDIUM"
+            else:
+                risk_tier = "LOW"
+
+            if i == 0:
+                manager_code = None
+                managers_by_dept[dept_code] = code
+            else:
+                manager_code = managers_by_dept.get(dept_code)
+
+            dob = date(rng.randint(1975, 2000), rng.randint(1, 12), rng.randint(1, 28))
+
+            if risk_tier in ["CRITICAL", "HIGH"]:
+                doj = date(
+                    rng.choice([2021, 2022, 2023, 2024]), rng.randint(1, 12), rng.randint(1, 28)
+                )
+            else:
+                doj = date(rng.randint(2015, 2023), rng.randint(1, 12), rng.randint(1, 28))
+
+            skills = []
+            reviews = []
+            enrollments = []
+
+            role_skills = {
+                "SR-SWE": [
+                    ("SK-PY", 4, True),
+                    ("SK-SQL", 4, True),
+                    ("SK-DOCKER", 3, True),
+                    ("SK-CLOUD", 3, False),
+                    ("SK-AGILE", 3, False),
+                ],
+                "LEAD-SWE": [
+                    ("SK-PY", 5, True),
+                    ("SK-CLOUD", 5, True),
+                    ("SK-SQL", 5, True),
+                    ("SK-LEAD", 4, True),
+                    ("SK-SEC", 4, True),
+                ],
+                "ML-ENG": [
+                    ("SK-PY", 5, True),
+                    ("SK-ML", 5, True),
+                    ("SK-SQL", 4, True),
+                    ("SK-CLOUD", 4, False),
+                ],
+                "FE-ENG": [("SK-REACT", 4, True), ("SK-COMM", 3, False), ("SK-AGILE", 3, True)],
+                "SR-PM": [
+                    ("SK-PRODMG", 5, True),
+                    ("SK-BI", 4, True),
+                    ("SK-COMM", 5, True),
+                    ("SK-AGILE", 4, True),
+                ],
+                "HR-BP": [
+                    ("SK-TALENT", 4, True),
+                    ("SK-COMM", 4, True),
+                    ("SK-LEAD", 3, False),
+                    ("SK-BI", 3, False),
+                ],
+                "ENT-AE": [("SK-NEGOT", 5, True), ("SK-COMM", 5, True), ("SK-LEAD", 3, False)],
+                "MKT-LEAD": [("SK-SEO", 5, True), ("SK-BI", 4, True), ("SK-COMM", 4, True)],
+            }
+
+            r_skills = role_skills[role]
+
+            # Gaps count setup
+            if emp_index <= 15:
+                # 0 gaps
+                for s_code, req, mand in r_skills:
+                    skills.append(
+                        (s_code, req + rng.randint(0, 5 - req), rng.uniform(3.0, 8.0), True)
+                    )
+            elif emp_index <= 35:
+                # 1-2 gaps
+                target_gaps = 1 if emp_index <= 25 else 2
+                gaps_count = 0
+                for s_code, req, mand in r_skills:
+                    if gaps_count < target_gaps:
+                        skills.append((s_code, req - 1, rng.uniform(1.0, 4.0), False))
+                        gaps_count += 1
+                    else:
+                        skills.append(
+                            (s_code, req, rng.uniform(2.0, 6.0), rng.choice([True, False]))
+                        )
+            elif emp_index <= 45:
+                # 3-4 gaps
+                target_gaps = 3 if emp_index <= 40 else 4
+                gaps_count = 0
+                for s_code, req, mand in r_skills:
+                    if gaps_count < target_gaps:
+                        skills.append(
+                            (s_code, rng.randint(1, req - 1), rng.uniform(0.5, 3.0), False)
+                        )
+                        gaps_count += 1
+                    else:
+                        skills.append(
+                            (s_code, req, rng.uniform(2.0, 5.0), rng.choice([True, False]))
+                        )
+            else:
+                # 5+ gaps
+                for s_code, req, mand in r_skills:
+                    skills.append((s_code, 1, rng.uniform(0.5, 2.0), False))
+
+            # Reviews setup:
+            num_revs = rng.randint(2, 3)
+            if risk_tier == "CRITICAL":
+                ratings = [4, 3, 2] if num_revs == 3 else [3, 2]
+                scores = (
+                    [Decimal("82.00"), Decimal("71.00"), Decimal("58.00")]
+                    if num_revs == 3
+                    else [Decimal("72.00"), Decimal("59.00")]
+                )
+            elif risk_tier == "HIGH":
+                ratings = [4, 3, 3] if num_revs == 3 else [3, 2]
+                scores = (
+                    [Decimal("83.00"), Decimal("73.00"), Decimal("71.00")]
+                    if num_revs == 3
+                    else [Decimal("70.00"), Decimal("62.00")]
+                )
+            elif risk_tier == "LOW" and emp_index <= 6:
+                ratings = [3, 4, 5] if num_revs == 3 else [4, 5]
+                scores = (
+                    [Decimal("74.00"), Decimal("86.00"), Decimal("95.00")]
+                    if num_revs == 3
+                    else [Decimal("85.00"), Decimal("96.00")]
+                )
+            elif risk_tier == "LOW" and emp_index > 6 and emp_index <= 12:
+                ratings = [2, 3, 4] if num_revs == 3 else [3, 4]
+                scores = (
+                    [Decimal("60.00"), Decimal("74.00"), Decimal("85.00")]
+                    if num_revs == 3
+                    else [Decimal("75.00"), Decimal("86.00")]
+                )
+            elif risk_tier == "LOW":
+                ratings = [5, 5, 5] if num_revs == 3 else [5, 5]
+                scores = (
+                    [Decimal("94.00"), Decimal("95.00"), Decimal("96.00")]
+                    if num_revs == 3
+                    else [Decimal("94.00"), Decimal("96.00")]
+                )
+            else:
+                ratings = [3, 3, 3] if num_revs == 3 else [3, 3]
+                scores = (
+                    [Decimal("75.00"), Decimal("76.00"), Decimal("77.00")]
+                    if num_revs == 3
+                    else [Decimal("75.00"), Decimal("76.00")]
+                )
+
+            for j in range(num_revs):
+                cycle = ReviewCycle.QUARTERLY if j < 2 else ReviewCycle.ANNUAL
+                period = f"Q{j+1} 2025" if cycle == ReviewCycle.QUARTERLY else "Annual 2025"
+                rev_date = (
+                    date(2025, 3 + j * 3, 28)
+                    if cycle == ReviewCycle.QUARTERLY
+                    else date(2025, 12, 15)
+                )
+                reviews.append(
+                    (
+                        cycle,
+                        period,
+                        rev_date,
+                        scores[j],
+                        ratings[j],
+                        "Consistent output and technical focus.",
+                        "Keep driving team objectives and training.",
+                    )
+                )
+
+            # Training enrollments setup:
+            has_training = True
+            if risk_tier in ["CRITICAL", "HIGH"]:
+                has_training = False
+            elif risk_tier == "MEDIUM" and emp_index == 30:
+                has_training = False
+
+            if has_training:
+                course_by_skill = {
+                    "SK-PY": "TR-PY-ADV",
+                    "SK-CLOUD": "TR-GCP-ARCH",
+                    "SK-ML": "TR-MLOPS",
+                    "SK-REACT": "TR-REACT-TS",
+                    "SK-BI": "TR-DATA-BI",
+                    "SK-LEAD": "TR-EXEC-LEAD",
+                    "SK-SEC": "TR-SEC-IAM",
+                    "SK-PRODMG": "TR-PROD-STRAT",
+                }
+
+                target_skill = r_skills[0][0]
+                course_code = course_by_skill.get(target_skill, "TR-PY-ADV")
+
+                if risk_tier == "LOW":
+                    enrollments.append(
+                        (
+                            course_code,
+                            date(2025, 5, 10),
+                            date(2025, 6, 20),
+                            EnrollmentStatus.COMPLETED,
+                            Decimal("92.00"),
+                            True,
+                            5,
+                        )
+                    )
+                else:  # MEDIUM
+                    enrollments.append(
+                        (
+                            course_code,
+                            date(2025, 8, 1),
+                            None,
+                            EnrollmentStatus.IN_PROGRESS,
+                            None,
+                            False,
+                            None,
+                        )
+                    )
+
+            employees.append(
+                {
+                    "code": code,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "dob": dob,
+                    "gender": gender,
+                    "phone": f"+1-555-0{emp_index:03d}",
+                    "email": f"{first_name.lower()}.{last_name.lower()}{emp_index}@workforce.local",
+                    "dept": dept_code,
+                    "role": role,
+                    "manager_code": manager_code,
+                    "doj": doj,
+                    "status": EmploymentStatus.ACTIVE,
+                    "type": emp_type,
+                    "mode": mode,
+                    "loc": "San Francisco, CA" if dept_code != "SALES" else "New York, NY",
+                    "overtime_frequency": ot,
+                    "skills": skills,
+                    "reviews": reviews,
+                    "enrollments": enrollments,
+                }
+            )
+            emp_index += 1
+
+    return employees
+
+
 def seed_database():
     print("[Seed] Starting deterministic database seeding...")
     db = SessionLocal()
 
     try:
+        # Clear child and employee-related tables safely to prevent duplicates and remove test contamination
+        print("[Seed] Safely resetting employee and predictive analytics tables...")
+        db.query(Recommendation).delete()
+        db.query(PredictionHistory).delete()
+        db.query(Notification).delete()
+        db.query(PerformanceReview).delete()
+        db.query(TrainingEnrollment).delete()
+        db.query(EmployeeSkill).delete()
+        db.query(Employee).delete()
+        db.commit()
+
         # 1. Seed Demo Users
         print("[Seed] 1/7 Seeding Users...")
         default_pwd_hash = hash_password("Password123!")
@@ -510,431 +931,7 @@ def seed_database():
 
         # 6. Seed Employees Hierarchy & Profiles
         print("[Seed] 6/7 Seeding 12+ Comprehensive Employee Profiles...")
-        employees_data = [
-            # Engineering Leadership & Seniors
-            {
-                "code": "EMP-ENG-001",
-                "first_name": "Alexander",
-                "last_name": "Wright",
-                "dob": date(1985, 4, 12),
-                "gender": Gender.MALE,
-                "phone": "+1-555-0101",
-                "email": "alexander.wright@workforce.local",
-                "dept": "ENG",
-                "role": "LEAD-SWE",
-                "manager_code": None,
-                "doj": date(2020, 1, 15),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.HYBRID,
-                "loc": "San Francisco, CA",
-                "skills": [
-                    ("SK-PY", 5, 8.5, True),
-                    ("SK-CLOUD", 5, 7.0, True),
-                    ("SK-SQL", 5, 9.0, True),
-                    ("SK-LEAD", 4, 4.0, False),
-                    ("SK-SEC", 4, 3.5, True),
-                ],
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("95.00"),
-                        5,
-                        "Exemplary architectural leadership.",
-                        "Continue mentoring senior engineers.",
-                    ),
-                    (
-                        ReviewCycle.ANNUAL,
-                        "Annual 2025",
-                        date(2025, 12, 15),
-                        Decimal("92.00"),
-                        5,
-                        "Solid track record.",
-                        "Expand cloud cost governance.",
-                    ),
-                ],
-                "enrollments": [
-                    (
-                        "TR-EXEC-LEAD",
-                        date(2025, 6, 1),
-                        date(2025, 7, 15),
-                        EnrollmentStatus.COMPLETED,
-                        Decimal("98.00"),
-                        True,
-                        5,
-                    ),
-                ],
-            },
-            {
-                "code": "EMP-ENG-002",
-                "first_name": "Sarah",
-                "last_name": "Connor",
-                "dob": date(1990, 8, 22),
-                "gender": Gender.FEMALE,
-                "phone": "+1-555-0102",
-                "email": "sarah.connor@workforce.local",
-                "dept": "ENG",
-                "role": "SR-SWE",
-                "manager_code": "EMP-ENG-001",
-                "doj": date(2021, 3, 10),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.REMOTE,
-                "loc": "Austin, TX",
-                "skills": [
-                    ("SK-PY", 4, 5.0, True),
-                    ("SK-SQL", 4, 4.5, True),
-                    ("SK-DOCKER", 3, 2.5, False),
-                    ("SK-CLOUD", 2, 1.0, False),
-                ],  # Gap in Cloud (2 vs req 3)
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("88.00"),
-                        4,
-                        "Reliable microservice delivery.",
-                        "Needs more cloud deployment ownership.",
-                    ),
-                    (
-                        ReviewCycle.ANNUAL,
-                        "Annual 2025",
-                        date(2025, 12, 15),
-                        Decimal("85.00"),
-                        4,
-                        "Good performance.",
-                        "Upskill in Kubernetes.",
-                    ),
-                ],
-                "enrollments": [
-                    (
-                        "TR-GCP-ARCH",
-                        date(2026, 1, 10),
-                        None,
-                        EnrollmentStatus.IN_PROGRESS,
-                        None,
-                        False,
-                        None,
-                    ),
-                ],
-            },
-            {
-                "code": "EMP-ENG-003",
-                "first_name": "David",
-                "last_name": "Chen",
-                "dob": date(1993, 11, 5),
-                "gender": Gender.MALE,
-                "phone": "+1-555-0103",
-                "email": "david.chen@workforce.local",
-                "dept": "ENG",
-                "role": "ML-ENG",
-                "manager_code": "EMP-ENG-001",
-                "doj": date(2022, 6, 1),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.HYBRID,
-                "loc": "San Francisco, CA",
-                "skills": [
-                    ("SK-PY", 5, 4.0, True),
-                    ("SK-ML", 4, 3.0, True),
-                    ("SK-SQL", 4, 3.5, False),
-                    ("SK-CLOUD", 3, 1.5, False),
-                ],
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("90.00"),
-                        4,
-                        "High quality feature engineering.",
-                        "Automate model retraining pipeline.",
-                    ),
-                    (
-                        ReviewCycle.ANNUAL,
-                        "Annual 2025",
-                        date(2025, 12, 15),
-                        Decimal("86.00"),
-                        4,
-                        "Good AI modeling.",
-                        "Document experimental findings.",
-                    ),
-                ],
-                "enrollments": [
-                    (
-                        "TR-MLOPS",
-                        date(2025, 9, 1),
-                        date(2025, 10, 20),
-                        EnrollmentStatus.COMPLETED,
-                        Decimal("94.00"),
-                        True,
-                        5,
-                    ),
-                ],
-            },
-            {
-                "code": "EMP-ENG-004",
-                "first_name": "Elena",
-                "last_name": "Rostova",
-                "dob": date(1996, 2, 14),
-                "gender": Gender.FEMALE,
-                "phone": "+1-555-0104",
-                "email": "elena.rostova@workforce.local",
-                "dept": "ENG",
-                "role": "FE-ENG",
-                "manager_code": "EMP-ENG-001",
-                "doj": date(2023, 8, 15),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.OFFICE,
-                "loc": "San Francisco, CA",
-                "skills": [
-                    ("SK-REACT", 4, 3.0, True),
-                    ("SK-AGILE", 3, 2.0, False),
-                    ("SK-COMM", 3, 1.5, False),
-                ],
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("84.00"),
-                        4,
-                        "Great UI component polish.",
-                        "Contribute more in sprint planning.",
-                    ),
-                ],
-                "enrollments": [
-                    (
-                        "TR-REACT-TS",
-                        date(2025, 11, 1),
-                        date(2025, 11, 28),
-                        EnrollmentStatus.COMPLETED,
-                        Decimal("90.00"),
-                        True,
-                        4,
-                    ),
-                ],
-            },
-            # Employee with Attrition / Flight Risk Profile (Declining review, high skill gap)
-            {
-                "code": "EMP-ENG-005",
-                "first_name": "Marcus",
-                "last_name": "Brody",
-                "dob": date(1989, 5, 18),
-                "gender": Gender.MALE,
-                "phone": "+1-555-0105",
-                "email": "marcus.brody@workforce.local",
-                "dept": "ENG",
-                "role": "SR-SWE",
-                "manager_code": "EMP-ENG-001",
-                "doj": date(2022, 1, 10),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.REMOTE,
-                "loc": "Chicago, IL",
-                "skills": [
-                    ("SK-PY", 3, 3.0, False),
-                    ("SK-SQL", 3, 2.0, False),
-                ],  # High gaps in Python (3 vs req 4), SQL (3 vs req 4), Docker (0 vs req 3)
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("62.00"),
-                        2,
-                        "Struggling with deadlines and system complexity.",
-                        "Urgent need for upskilling in microservice design.",
-                    ),
-                    (
-                        ReviewCycle.ANNUAL,
-                        "Annual 2025",
-                        date(2025, 12, 15),
-                        Decimal("74.00"),
-                        3,
-                        "Met basic targets.",
-                        "Improve communication with squad leads.",
-                    ),
-                ],
-                "enrollments": [],
-            },
-            # Product Management
-            {
-                "code": "EMP-PROD-001",
-                "first_name": "Maya",
-                "last_name": "Lin",
-                "dob": date(1988, 9, 30),
-                "gender": Gender.FEMALE,
-                "phone": "+1-555-0201",
-                "email": "maya.lin@workforce.local",
-                "dept": "PROD",
-                "role": "SR-PM",
-                "manager_code": None,
-                "doj": date(2021, 5, 20),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.HYBRID,
-                "loc": "New York, NY",
-                "skills": [
-                    ("SK-PRODMG", 5, 6.0, True),
-                    ("SK-BI", 4, 4.0, True),
-                    ("SK-COMM", 5, 7.0, True),
-                    ("SK-AGILE", 4, 5.0, True),
-                ],
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("94.00"),
-                        5,
-                        "Outstanding product roadmap execution.",
-                        "Expand client co-design sessions.",
-                    ),
-                ],
-                "enrollments": [
-                    (
-                        "TR-PROD-STRAT",
-                        date(2025, 4, 1),
-                        date(2025, 5, 10),
-                        EnrollmentStatus.COMPLETED,
-                        Decimal("96.00"),
-                        True,
-                        5,
-                    ),
-                ],
-            },
-            # HR Team
-            {
-                "code": "EMP-HR-001",
-                "first_name": "Eleanor",
-                "last_name": "Vance",
-                "dob": date(1987, 12, 4),
-                "gender": Gender.FEMALE,
-                "phone": "+1-555-0301",
-                "email": "eleanor.vance@workforce.local",
-                "dept": "HR",
-                "role": "HR-BP",
-                "manager_code": None,
-                "doj": date(2019, 11, 1),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.HYBRID,
-                "loc": "San Francisco, CA",
-                "skills": [
-                    ("SK-TALENT", 5, 8.0, True),
-                    ("SK-COMM", 5, 7.0, True),
-                    ("SK-LEAD", 4, 5.0, False),
-                    ("SK-BI", 3, 2.0, False),
-                ],
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("96.00"),
-                        5,
-                        "Key contributor to organizational culture.",
-                        "Drive new predictive HR adoption.",
-                    ),
-                ],
-                "enrollments": [
-                    (
-                        "TR-DATA-BI",
-                        date(2026, 2, 1),
-                        None,
-                        EnrollmentStatus.IN_PROGRESS,
-                        None,
-                        False,
-                        None,
-                    ),
-                ],
-            },
-            # Sales Team
-            {
-                "code": "EMP-SALES-001",
-                "first_name": "Jordan",
-                "last_name": "Belfort",
-                "dob": date(1991, 7, 19),
-                "gender": Gender.MALE,
-                "phone": "+1-555-0401",
-                "email": "jordan.belfort@workforce.local",
-                "dept": "SALES",
-                "role": "ENT-AE",
-                "manager_code": None,
-                "doj": date(2022, 4, 15),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.OFFICE,
-                "loc": "New York, NY",
-                "skills": [
-                    ("SK-NEGOT", 5, 6.0, True),
-                    ("SK-COMM", 5, 5.5, True),
-                    ("SK-LEAD", 3, 2.0, False),
-                ],
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("91.00"),
-                        5,
-                        "Exceeded Q1 quota by 120%.",
-                        "Focus on recurring enterprise contracts.",
-                    ),
-                ],
-                "enrollments": [],
-            },
-            # Marketing Team
-            {
-                "code": "EMP-MKT-001",
-                "first_name": "Chloe",
-                "last_name": "Kim",
-                "dob": date(1994, 3, 11),
-                "gender": Gender.FEMALE,
-                "phone": "+1-555-0501",
-                "email": "chloe.kim@workforce.local",
-                "dept": "MKT",
-                "role": "MKT-LEAD",
-                "manager_code": None,
-                "doj": date(2023, 1, 10),
-                "status": EmploymentStatus.ACTIVE,
-                "type": EmploymentType.FULL_TIME,
-                "mode": WorkMode.REMOTE,
-                "loc": "Seattle, WA",
-                "skills": [
-                    ("SK-SEO", 5, 4.0, True),
-                    ("SK-BI", 3, 2.0, False),
-                    ("SK-COMM", 4, 3.5, True),
-                ],  # Gap in BI (3 vs 4)
-                "reviews": [
-                    (
-                        ReviewCycle.QUARTERLY,
-                        "Q1 2026",
-                        date(2026, 3, 31),
-                        Decimal("85.00"),
-                        4,
-                        "Strong organic traffic acquisition.",
-                        "Refine multi-channel attribution modeling.",
-                    ),
-                ],
-                "enrollments": [
-                    (
-                        "TR-DATA-BI",
-                        date(2026, 1, 15),
-                        None,
-                        EnrollmentStatus.IN_PROGRESS,
-                        None,
-                        False,
-                        None,
-                    ),
-                ],
-            },
-        ]
+        employees_data = generate_50_employees()
 
         emp_map = {}
         # First pass: Create employees
@@ -959,12 +956,15 @@ def seed_database():
                     employment_type=e_data["type"],
                     work_mode=e_data["mode"],
                     work_location=e_data["loc"],
+                    overtime_frequency=e_data["overtime_frequency"],
                     is_deleted=False,
                 )
                 db.add(emp)
                 db.flush()
                 emp_map[e_data["code"]] = emp
             else:
+                existing.overtime_frequency = e_data["overtime_frequency"]
+                db.flush()
                 emp_map[e_data["code"]] = existing
 
         # Second pass: Assign manager references

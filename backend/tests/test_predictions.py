@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 
 def test_predict_single_employee(client: TestClient, admin_headers: dict, db_session: Session):
-    emp = db_session.query(Employee).first()
+    emp = db_session.query(Employee).filter(Employee.is_deleted == False).first()
     assert emp is not None
 
     response = client.post(

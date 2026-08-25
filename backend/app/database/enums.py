@@ -199,3 +199,13 @@ class NotificationType(str, Enum):
     ALERT = "ALERT"
     REMINDER = "REMINDER"
     AI_RECOMMENDATION = "AI_RECOMMENDATION"
+
+
+class OvertimeFrequency(str, Enum):
+    """
+    Defines the frequency of overtime worked by an employee.
+    """
+
+    NONE = "NONE"
+    OCCASIONAL = "OCCASIONAL"
+    FREQUENT = "FREQUENT"

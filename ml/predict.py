@@ -86,7 +86,9 @@ def extract_features_from_employee(employee: Employee) -> dict[str, Any]:
         round(trainings_completed / trainings_enrolled, 2) if trainings_enrolled > 0 else 0.0
     )
 
-    overtime_frequency = "NONE"
+    overtime_frequency = (
+        employee.overtime_frequency.value if employee.overtime_frequency else "NONE"
+    )
 
     return {
         "department": department,

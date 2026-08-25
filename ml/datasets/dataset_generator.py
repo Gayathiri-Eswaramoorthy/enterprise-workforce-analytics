@@ -21,7 +21,13 @@ def generate_workforce_dataset(num_samples: int = 1200, random_seed: int = 42) -
     np.random.seed(random_seed)
     random.seed(random_seed)
 
-    departments = ["Engineering", "Human Resources", "Sales", "Marketing", "Product"]
+    departments = [
+        "Engineering",
+        "Human Resources",
+        "Product & Design",
+        "Enterprise Sales",
+        "Growth & Marketing",
+    ]
     work_modes = ["OFFICE", "REMOTE", "HYBRID"]
     employment_types = ["FULL_TIME", "CONTRACT", "PART_TIME"]
 
@@ -60,37 +66,47 @@ def generate_workforce_dataset(num_samples: int = 1200, random_seed: int = 42) -
         overtime_frequency = random.choice(["NONE", "OCCASIONAL", "FREQUENT"])
 
         # Ground-truth risk probability calculation (realistic domain logic for synthetic ground truth)
-        risk_score = 0.15  # baseline 15%
+        risk_score = 0.12  # baseline 12%
 
         # Risk drivers
         if latest_rating <= 2:
-            risk_score += 0.25
+            risk_score += 0.20
         elif latest_rating >= 4:
             risk_score -= 0.10
 
         if rating_change < 0:
-            risk_score += 0.18
+            risk_score += 0.15
         elif rating_change > 0:
-            risk_score -= 0.08
+            risk_score -= 0.05
 
         if mandatory_gaps >= 2:
-            risk_score += 0.20
+            risk_score += 0.15
         elif total_skill_gaps >= 4:
-            risk_score += 0.12
-
-        if training_completion_rate < 0.4 and trainings_enrolled > 0:
             risk_score += 0.10
+
+        # Non-linear interactions
+        # 1. Frequent overtime combined with poor performance rating
+        if overtime_frequency == "FREQUENT" and latest_rating <= 2:
+            risk_score += 0.25
+        elif overtime_frequency == "FREQUENT" and rating_change < 0:
+            risk_score += 0.20
+        elif overtime_frequency == "FREQUENT":
+            risk_score += 0.10
+
+        # 2. High mandatory gaps combined with poor training completion
+        if mandatory_gaps >= 1 and training_completion_rate < 0.3:
+            risk_score += 0.22
         elif training_completion_rate >= 0.8:
             risk_score -= 0.10
 
-        if tenure_years < 1.5 or tenure_years > 8.0:
-            risk_score += 0.08
+        # 3. Tenure dynamics
+        if tenure_years > 8.0 and rating_change < 0:
+            risk_score += 0.18
+        elif tenure_years < 1.5 and latest_rating <= 2:
+            risk_score += 0.15
 
-        if overtime_frequency == "FREQUENT":
-            risk_score += 0.12
-
-        # Add noise
-        risk_score = max(0.02, min(0.98, risk_score + random.gauss(0, 0.08)))
+        # Add noise (sigma = 0.15)
+        risk_score = max(0.01, min(0.99, risk_score + random.gauss(0, 0.15)))
 
         # Target label: 1 if At-Risk (attrition/disengagement), 0 otherwise
         target_at_risk = 1 if risk_score >= 0.50 else 0
@@ -125,6 +141,6 @@ def generate_workforce_dataset(num_samples: int = 1200, random_seed: int = 42) -
 if __name__ == "__main__":
     out_dir = os.path.dirname(os.path.abspath(__file__))
     out_file = os.path.join(out_dir, "synthetic_workforce_data.csv")
-    dataset = generate_workforce_dataset(1500)
+    dataset = generate_workforce_dataset(5000)
     dataset.to_csv(out_file, index=False)
     print(f"Generated {len(dataset)} synthetic workforce records saved to: {out_file}")

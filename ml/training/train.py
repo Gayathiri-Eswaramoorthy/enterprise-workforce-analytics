@@ -32,7 +32,7 @@ from app.models import ModelRegistry
 from ml.datasets.dataset_generator import generate_workforce_dataset
 
 
-def train_and_register_model(dataset_size: int = 1500, version: str = "v1.0.0"):
+def train_and_register_model(dataset_size: int = 5000, version: str = "v1.1.0"):
     """
     Execute end-to-end ML model training, evaluation, artifact export, and database registration.
     """
@@ -60,9 +60,14 @@ def train_and_register_model(dataset_size: int = 1500, version: str = "v1.0.0"):
     X = df[categorical_features + numerical_features]
     y = df[target_col]
 
-    # Split: 80% train, 20% test
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+    # Split: 3-way split (70% train, 15% val, 15% untouched test)
+    # First split off 15% untouched test
+    X_train_val, X_test, y_train_val, y_test = train_test_split(
+        X, y, test_size=0.15, random_state=42, stratify=y
+    )
+    # Second split: validation set (17.647% of 85% is exactly 15% of 100%)
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train_val, y_train_val, test_size=0.17647, random_state=42, stratify=y_train_val
     )
 
     # Preprocessing Pipeline
@@ -77,64 +82,155 @@ def train_and_register_model(dataset_size: int = 1500, version: str = "v1.0.0"):
         ]
     )
 
-    # Candidate 1: Random Forest Classifier
-    rf_pipeline = Pipeline(
-        [
-            ("preprocessor", preprocessor),
-            ("classifier", RandomForestClassifier(n_estimators=100, max_depth=8, random_state=42)),
-        ]
-    )
-    rf_pipeline.fit(X_train, y_train)
-    rf_preds = rf_pipeline.predict(X_test)
-    rf_acc = accuracy_score(y_test, rf_preds)
-    rf_f1 = f1_score(y_test, rf_preds)
-    rf_prec = precision_score(y_test, rf_preds)
-    rf_rec = recall_score(y_test, rf_preds)
+    import numpy as np
+    from sklearn.metrics import confusion_matrix, roc_auc_score
+    from sklearn.model_selection import StratifiedKFold
+    from sklearn.utils.class_weight import compute_sample_weight
 
-    print(
-        f"[Model Eval] Random Forest -> Acc: {rf_acc:.4f}, F1: {rf_f1:.4f}, Prec: {rf_prec:.4f}, Rec: {rf_rec:.4f}"
+    # Candidate 1: Random Forest Classifier
+    rf_clf = RandomForestClassifier(
+        n_estimators=100, max_depth=8, class_weight="balanced", random_state=42
     )
+    rf_pipeline = Pipeline([("preprocessor", preprocessor), ("classifier", rf_clf)])
 
     # Candidate 2: Gradient Boosting Classifier
-    gb_pipeline = Pipeline(
-        [
-            ("preprocessor", preprocessor),
-            (
-                "classifier",
-                GradientBoostingClassifier(
-                    n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42
-                ),
-            ),
-        ]
+    gb_clf = GradientBoostingClassifier(
+        n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42
     )
-    gb_pipeline.fit(X_train, y_train)
-    gb_preds = gb_pipeline.predict(X_test)
-    gb_acc = accuracy_score(y_test, gb_preds)
-    gb_f1 = f1_score(y_test, gb_preds)
-    gb_prec = precision_score(y_test, gb_preds)
-    gb_rec = recall_score(y_test, gb_preds)
+    gb_pipeline = Pipeline([("preprocessor", preprocessor), ("classifier", gb_clf)])
+
+    # 5-fold Stratified Cross-Validation on X_train (70%)
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    rf_metrics = {"accuracy": [], "precision": [], "recall": [], "f1": [], "roc_auc": []}
+    gb_metrics = {"accuracy": [], "precision": [], "recall": [], "f1": [], "roc_auc": []}
+
+    X_train_reset = X_train.reset_index(drop=True)
+    y_train_reset = y_train.reset_index(drop=True)
+
+    for train_idx, val_idx in skf.split(X_train_reset, y_train_reset):
+        X_fold_train, X_fold_val = X_train_reset.iloc[train_idx], X_train_reset.iloc[val_idx]
+        y_fold_train, y_fold_val = y_train_reset.iloc[train_idx], y_train_reset.iloc[val_idx]
+
+        # Fit Random Forest
+        rf_pipeline.fit(X_fold_train, y_fold_train)
+        rf_preds = rf_pipeline.predict(X_fold_val)
+        rf_probs = rf_pipeline.predict_proba(X_fold_val)[:, 1]
+
+        rf_metrics["accuracy"].append(accuracy_score(y_fold_val, rf_preds))
+        rf_metrics["precision"].append(precision_score(y_fold_val, rf_preds, zero_division=0))
+        rf_metrics["recall"].append(recall_score(y_fold_val, rf_preds, zero_division=0))
+        rf_metrics["f1"].append(f1_score(y_fold_val, rf_preds, zero_division=0))
+        rf_metrics["roc_auc"].append(roc_auc_score(y_fold_val, rf_probs))
+
+        # Fit Gradient Boosting with sample weights
+        sw = compute_sample_weight(class_weight="balanced", y=y_fold_train)
+        gb_pipeline.fit(X_fold_train, y_fold_train, classifier__sample_weight=sw)
+        gb_preds = gb_pipeline.predict(X_fold_val)
+        gb_probs = gb_pipeline.predict_proba(X_fold_val)[:, 1]
+
+        gb_metrics["accuracy"].append(accuracy_score(y_fold_val, gb_preds))
+        gb_metrics["precision"].append(precision_score(y_fold_val, gb_preds, zero_division=0))
+        gb_metrics["recall"].append(recall_score(y_fold_val, gb_preds, zero_division=0))
+        gb_metrics["f1"].append(f1_score(y_fold_val, gb_preds, zero_division=0))
+        gb_metrics["roc_auc"].append(roc_auc_score(y_fold_val, gb_probs))
+
+    rf_mean_f1 = np.mean(rf_metrics["f1"])
+    gb_mean_f1 = np.mean(gb_metrics["f1"])
 
     print(
-        f"[Model Eval] Gradient Boosting -> Acc: {gb_acc:.4f}, F1: {gb_f1:.4f}, Prec: {gb_prec:.4f}, Rec: {gb_rec:.4f}"
+        f"[CV Eval] Random Forest -> Mean F1: {rf_mean_f1:.4f}, Accuracy: {np.mean(rf_metrics['accuracy']):.4f}, Precision: {np.mean(rf_metrics['precision']):.4f}, Recall: {np.mean(rf_metrics['recall']):.4f}, ROC-AUC: {np.mean(rf_metrics['roc_auc']):.4f}"
+    )
+    print(
+        f"[CV Eval] Gradient Boosting -> Mean F1: {gb_mean_f1:.4f}, Accuracy: {np.mean(gb_metrics['accuracy']):.4f}, Precision: {np.mean(gb_metrics['precision']):.4f}, Recall: {np.mean(gb_metrics['recall']):.4f}, ROC-AUC: {np.mean(gb_metrics['roc_auc']):.4f}"
     )
 
-    # Select Best Model based on F1 Score
-    if gb_f1 >= rf_f1:
+    # Model Selection based on CV F1 score
+    if gb_mean_f1 >= rf_mean_f1:
         best_pipeline = gb_pipeline
         best_algorithm = "Gradient Boosting Classifier"
-        best_acc, best_prec, best_rec, best_f1 = gb_acc, gb_prec, gb_rec, gb_f1
+        # Train best model on training set (70%) to get validation scores
+        sw_train = compute_sample_weight(class_weight="balanced", y=y_train)
+        best_pipeline.fit(X_train, y_train, classifier__sample_weight=sw_train)
+
+        # Validation evaluation
+        val_preds = best_pipeline.predict(X_val)
+        val_probs = best_pipeline.predict_proba(X_val)[:, 1]
+
+        # Train final model on train_val (85%) for test evaluation
+        final_pipeline = Pipeline(
+            [
+                ("preprocessor", preprocessor),
+                (
+                    "classifier",
+                    GradientBoostingClassifier(
+                        n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42
+                    ),
+                ),
+            ]
+        )
+        sw_train_val = compute_sample_weight(class_weight="balanced", y=y_train_val)
+        final_pipeline.fit(X_train_val, y_train_val, classifier__sample_weight=sw_train_val)
     else:
         best_pipeline = rf_pipeline
         best_algorithm = "Random Forest Classifier"
-        best_acc, best_prec, best_rec, best_f1 = rf_acc, rf_prec, rf_rec, rf_f1
+        best_pipeline.fit(X_train, y_train)
 
-    print(f"[ML Pipeline] Selected Best Model: {best_algorithm} (F1 Score: {best_f1:.4f})")
+        # Validation evaluation
+        val_preds = best_pipeline.predict(X_val)
+        val_probs = best_pipeline.predict_proba(X_val)[:, 1]
 
-    # Serialize Artifact
+        # Train final model on train_val (85%) for test evaluation
+        final_pipeline = Pipeline(
+            [
+                ("preprocessor", preprocessor),
+                (
+                    "classifier",
+                    RandomForestClassifier(
+                        n_estimators=100, max_depth=8, class_weight="balanced", random_state=42
+                    ),
+                ),
+            ]
+        )
+        final_pipeline.fit(X_train_val, y_train_val)
+
+    val_acc = accuracy_score(y_val, val_preds)
+    val_prec = precision_score(y_val, val_preds, zero_division=0)
+    val_rec = recall_score(y_val, val_preds, zero_division=0)
+    val_f1 = f1_score(y_val, val_preds, zero_division=0)
+    val_roc_auc = roc_auc_score(y_val, val_probs)
+
+    print(
+        f"[Validation Eval] Selected Model ({best_algorithm}) -> F1: {val_f1:.4f}, Accuracy: {val_acc:.4f}, Precision: {val_prec:.4f}, Recall: {val_rec:.4f}, ROC-AUC: {val_roc_auc:.4f}"
+    )
+
+    # Evaluate final selected model ONCE on the untouched 15% test set (X_test, y_test)
+    test_preds = final_pipeline.predict(X_test)
+    test_probs = final_pipeline.predict_proba(X_test)[:, 1]
+
+    test_acc = accuracy_score(y_test, test_preds)
+    test_prec = precision_score(y_test, test_preds, zero_division=0)
+    test_rec = recall_score(y_test, test_preds, zero_division=0)
+    test_f1 = f1_score(y_test, test_preds, zero_division=0)
+    test_roc_auc = roc_auc_score(y_test, test_probs)
+    test_cm = confusion_matrix(y_test, test_preds)
+
+    print("\n=============================================")
+    print("FINAL TEST METRICS (ON UNTOUCHED 15% TEST SET):")
+    print(f"Accuracy:  {test_acc:.4f}")
+    print(f"Precision: {test_prec:.4f}")
+    print(f"Recall:    {test_rec:.4f}")
+    print(f"F1 Score:  {test_f1:.4f}")
+    print(f"ROC-AUC:   {test_roc_auc:.4f}")
+    print("Confusion Matrix:")
+    print(test_cm)
+    print("=============================================\n")
+
+    # Serialize Artifact (save the final pipeline trained on 85%)
     artifacts_dir = os.path.join(ml_dir, "artifacts")
     os.makedirs(artifacts_dir, exist_ok=True)
     model_path = os.path.join(artifacts_dir, "workforce_risk_model.joblib")
-    joblib.dump(best_pipeline, model_path)
+    joblib.dump(final_pipeline, model_path)
     print(f"[ML Pipeline] Model artifact serialized to: {model_path}")
 
     # Save feature metadata with the artifact for explainability
@@ -145,16 +241,38 @@ def train_and_register_model(dataset_size: int = 1500, version: str = "v1.0.0"):
             "algorithm": best_algorithm,
             "categorical_features": categorical_features,
             "numerical_features": numerical_features,
+            "random_state": 42,
+            "dataset_size": dataset_size,
+            "cross_validation_folds": 5,
+            "cv_metrics": {
+                "rf": {k: float(np.mean(v)) for k, v in rf_metrics.items()},
+                "gb": {k: float(np.mean(v)) for k, v in gb_metrics.items()},
+            },
+            "validation_metrics": {
+                "accuracy": float(val_acc),
+                "precision": float(val_prec),
+                "recall": float(val_rec),
+                "f1": float(val_f1),
+                "roc_auc": float(val_roc_auc),
+            },
+            "final_test_metrics": {
+                "accuracy": float(test_acc),
+                "precision": float(test_prec),
+                "recall": float(test_rec),
+                "f1": float(test_f1),
+                "roc_auc": float(test_roc_auc),
+                "confusion_matrix": test_cm.tolist(),
+            },
             "feature_importances": (
                 dict(
                     zip(
                         numerical_features,
-                        best_pipeline.named_steps["classifier"].feature_importances_[
+                        final_pipeline.named_steps["classifier"].feature_importances_[
                             : len(numerical_features)
                         ],
                     )
                 )
-                if hasattr(best_pipeline.named_steps["classifier"], "feature_importances_")
+                if hasattr(final_pipeline.named_steps["classifier"], "feature_importances_")
                 else {}
             ),
         },
@@ -176,10 +294,10 @@ def train_and_register_model(dataset_size: int = 1500, version: str = "v1.0.0"):
                 existing.model_name = "Workforce Attrition & Risk Predictor"
                 existing.algorithm = best_algorithm
                 existing.training_dataset = f"Synthetic Workforce Dataset ({dataset_size} samples)"
-                existing.accuracy = Decimal(str(round(best_acc * 100, 2)))
-                existing.precision_score = Decimal(str(round(best_prec * 100, 2)))
-                existing.recall_score = Decimal(str(round(best_rec * 100, 2)))
-                existing.f1_score = Decimal(str(round(best_f1 * 100, 2)))
+                existing.accuracy = Decimal(str(round(test_acc * 100, 2)))
+                existing.precision_score = Decimal(str(round(test_prec * 100, 2)))
+                existing.recall_score = Decimal(str(round(test_rec * 100, 2)))
+                existing.f1_score = Decimal(str(round(test_f1 * 100, 2)))
                 existing.model_file_path = model_path
                 existing.is_active = True
                 existing.deployed_at = datetime.now(timezone.utc)
@@ -189,10 +307,10 @@ def train_and_register_model(dataset_size: int = 1500, version: str = "v1.0.0"):
                     model_version=version,
                     algorithm=best_algorithm,
                     training_dataset=f"Synthetic Workforce Dataset ({dataset_size} samples)",
-                    accuracy=Decimal(str(round(best_acc * 100, 2))),
-                    precision_score=Decimal(str(round(best_prec * 100, 2))),
-                    recall_score=Decimal(str(round(best_rec * 100, 2))),
-                    f1_score=Decimal(str(round(best_f1 * 100, 2))),
+                    accuracy=Decimal(str(round(test_acc * 100, 2))),
+                    precision_score=Decimal(str(round(test_prec * 100, 2))),
+                    recall_score=Decimal(str(round(test_rec * 100, 2))),
+                    f1_score=Decimal(str(round(test_f1 * 100, 2))),
                     model_file_path=model_path,
                     is_active=True,
                     deployed_at=datetime.now(timezone.utc),
@@ -206,8 +324,8 @@ def train_and_register_model(dataset_size: int = 1500, version: str = "v1.0.0"):
     return {
         "version": version,
         "algorithm": best_algorithm,
-        "accuracy": best_acc,
-        "f1": best_f1,
+        "accuracy": test_acc,
+        "f1": test_f1,
         "model_path": model_path,
     }
 

@@ -519,6 +519,10 @@ export const EmployeeDetailsPage: React.FC = () => {
               <span className="text-slate-500 font-semibold">Reporting Manager</span>
               <span className="text-slate-800">{employee.manager ? `${employee.manager.first_name} ${employee.manager.last_name}` : "None"}</span>
             </div>
+            <div className="flex justify-between py-2 border-b border-slate-100">
+              <span className="text-slate-500 font-semibold">Overtime Frequency</span>
+              <span className="text-slate-800 capitalize">{employee.overtime_frequency ? employee.overtime_frequency.toLowerCase() : "None"}</span>
+            </div>
           </div>
         </div>
       )}
