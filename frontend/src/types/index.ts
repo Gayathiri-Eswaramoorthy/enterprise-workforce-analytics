@@ -288,7 +288,7 @@ export interface AuditLog {
   description?: string;
   ip_address?: string;
   user_agent?: string;
-  timestamp: string;
+  created_at: string;
   user?: {
     username: string;
     email: string;

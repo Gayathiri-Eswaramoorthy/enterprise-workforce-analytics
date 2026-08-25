@@ -46,11 +46,11 @@ export const NotificationsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100">Notification Center</h3>
+        <h3 className="text-base font-bold text-slate-900">Notification Center</h3>
         {notifications.some((n) => !n.is_read) && (
           <button
             onClick={handleMarkAllRead}
-            className="flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300"
+            className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
           >
             <CheckCheck className="h-4 w-4" /> Mark All as Read
           </button>
@@ -60,30 +60,30 @@ export const NotificationsPage: React.FC = () => {
       <div className="space-y-3">
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"></div>
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
           </div>
         ) : notifications.length === 0 ? (
-          <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-12 text-center text-slate-500 text-sm">
-            <Bell className="h-8 w-8 mx-auto mb-2 text-slate-600" />
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500 text-sm">
+            <Bell className="h-8 w-8 mx-auto mb-2 text-slate-400" />
             No notifications available.
           </div>
         ) : (
           notifications.map((n) => (
             <div
               key={n.id}
-              className={`p-5 rounded-2xl border transition-all flex items-start justify-between gap-4 ${
+              className={`p-5 rounded-xl border transition-all flex items-start justify-between gap-4 ${
                 n.is_read
-                  ? "bg-[#0F1524]/60 border-slate-850 opacity-75"
-                  : "bg-[#0F1524] border-indigo-500/30 shadow-sm"
+                  ? "bg-slate-50 border-slate-100 opacity-75"
+                  : "bg-white border-slate-200 shadow-sm"
               }`}
             >
               <div className="flex items-start gap-4">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 flex-shrink-0 mt-0.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 flex-shrink-0 mt-0.5">
                   <Bell className="h-4.5 w-4.5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-100">{n.title}</h4>
-                  <p className="text-xs text-slate-400 mt-1">{n.message}</p>
+                  <h4 className="text-sm font-bold text-slate-900">{n.title}</h4>
+                  <p className="text-xs text-slate-650 mt-1">{n.message}</p>
                   <span className="text-[10px] text-slate-500 mt-2 block">
                     {new Date(n.created_at).toLocaleString()}
                   </span>
@@ -93,7 +93,7 @@ export const NotificationsPage: React.FC = () => {
               {!n.is_read && (
                 <button
                   onClick={() => handleMarkRead(n.id)}
-                  className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-slate-800 transition-colors"
+                  className="flex-shrink-0 p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors"
                   title="Mark as read"
                 >
                   <CheckCircle2 className="h-4.5 w-4.5" />

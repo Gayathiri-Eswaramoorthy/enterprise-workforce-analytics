@@ -101,13 +101,13 @@ export const EmployeesPage: React.FC = () => {
   const getRiskBadge = (risk?: RiskLevel) => {
     switch (risk) {
       case "CRITICAL":
-        return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">Critical</span>;
+        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100">Critical</span>;
       case "HIGH":
-        return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">High Risk</span>;
+        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-100">High Risk</span>;
       case "MEDIUM":
-        return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">Medium</span>;
+        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">Medium</span>;
       default:
-        return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Low Risk</span>;
+        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">Low Risk</span>;
     }
   };
 
@@ -117,7 +117,7 @@ export const EmployeesPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-72">
-            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search by name, email, code..."
@@ -126,7 +126,7 @@ export const EmployeesPage: React.FC = () => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-xl border border-slate-800 bg-[#0F1524] pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-none shadow-sm"
             />
           </div>
 
@@ -136,7 +136,7 @@ export const EmployeesPage: React.FC = () => {
               setSelectedDept(e.target.value);
               setPage(1);
             }}
-            className="rounded-xl border border-slate-800 bg-[#0F1524] px-3.5 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm"
           >
             <option value="">All Departments</option>
             {departments.map((d) => (
@@ -149,16 +149,16 @@ export const EmployeesPage: React.FC = () => {
 
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-colors w-full sm:w-auto justify-center"
+          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors w-full sm:w-auto justify-center"
         >
           <Plus className="h-4 w-4" /> Add Employee
         </button>
       </div>
 
       {/* Employees Table */}
-      <div className="rounded-2xl border border-slate-800 bg-[#0F1524] overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm text-slate-300">
-          <thead className="border-b border-slate-800 bg-[#0B0F19]/60 text-xs uppercase font-semibold text-slate-400 tracking-wider">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+        <table className="w-full text-left text-sm text-slate-700">
+          <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
             <tr>
               <th className="px-6 py-4">Employee</th>
               <th className="px-6 py-4">Department & Role</th>
@@ -168,11 +168,11 @@ export const EmployeesPage: React.FC = () => {
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
                 <td colSpan={6} className="py-12 text-center text-slate-400">
-                  <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"></div>
+                  <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
                   <p className="mt-2 text-xs">Loading employee records...</p>
                 </td>
               </tr>
@@ -184,17 +184,17 @@ export const EmployeesPage: React.FC = () => {
               </tr>
             ) : (
               employees.map((emp) => (
-                <tr key={emp.id} className="hover:bg-slate-800/30 transition-colors">
+                <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-800 font-bold text-slate-200 shadow-inner">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 font-bold text-slate-600 shadow-inner">
                         {emp.first_name[0]}
                         {emp.last_name[0]}
                       </div>
                       <div>
                         <Link
                           to={`/employees/${emp.id}`}
-                          className="font-medium text-slate-100 hover:text-indigo-400 transition-colors"
+                          className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
                         >
                           {emp.full_name || `${emp.first_name} ${emp.last_name}`}
                         </Link>
@@ -203,16 +203,16 @@ export const EmployeesPage: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="font-medium text-slate-200 block">{emp.job_role_title || "Role"}</span>
+                    <span className="font-semibold text-slate-700 block">{emp.job_role_title || "Role"}</span>
                     <span className="text-xs text-slate-500">{emp.department_name || "Department"}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-800 text-slate-300">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-105 text-slate-700 border border-slate-200 bg-slate-100">
                       {emp.work_mode}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                       {emp.employment_status}
                     </span>
                   </td>
@@ -222,7 +222,7 @@ export const EmployeesPage: React.FC = () => {
                   <td className="px-6 py-4 text-right">
                     <Link
                       to={`/employees/${emp.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-400 hover:text-indigo-300"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
                     >
                       View Profile <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
@@ -236,67 +236,67 @@ export const EmployeesPage: React.FC = () => {
 
       {/* Create Employee Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-[#0F1524] p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-            <h3 className="text-lg font-bold text-slate-100 mb-4">Add New Employee Profile</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl overflow-y-auto max-h-[90vh]">
+            <h3 className="text-base font-bold text-slate-900 mb-4">Add New Employee Profile</h3>
             <form onSubmit={handleCreateEmployee} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Employee Code</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Employee Code</label>
                   <input
                     type="text"
                     required
                     placeholder="EMP-ENG-099"
                     value={newEmp.employee_code}
                     onChange={(e) => setNewEmp({ ...newEmp, employee_code: e.target.value })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Official Email</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Official Email</label>
                   <input
                     type="email"
                     required
                     placeholder="john.doe@workforce.local"
                     value={newEmp.official_email}
                     onChange={(e) => setNewEmp({ ...newEmp, official_email: e.target.value })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">First Name</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">First Name</label>
                   <input
                     type="text"
                     required
                     placeholder="John"
                     value={newEmp.first_name}
                     onChange={(e) => setNewEmp({ ...newEmp, first_name: e.target.value })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Last Name</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Last Name</label>
                   <input
                     type="text"
                     required
                     placeholder="Doe"
                     value={newEmp.last_name}
                     onChange={(e) => setNewEmp({ ...newEmp, last_name: e.target.value })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Department</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Department</label>
                   <select
                     value={newEmp.department_id}
                     onChange={(e) => setNewEmp({ ...newEmp, department_id: e.target.value })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   >
                     {departments.map((d) => (
                       <option key={d.id} value={d.id}>
@@ -306,11 +306,11 @@ export const EmployeesPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Job Role</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Job Role</label>
                   <select
                     value={newEmp.job_role_id}
                     onChange={(e) => setNewEmp({ ...newEmp, job_role_id: e.target.value })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   >
                     {roles.map((r) => (
                       <option key={r.id} value={r.id}>
@@ -323,11 +323,11 @@ export const EmployeesPage: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Work Mode</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Work Mode</label>
                   <select
                     value={newEmp.work_mode}
                     onChange={(e) => setNewEmp({ ...newEmp, work_mode: e.target.value as any })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   >
                     <option value="OFFICE">Office</option>
                     <option value="HYBRID">Hybrid</option>
@@ -335,39 +335,39 @@ export const EmployeesPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Date of Joining</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Date of Joining</label>
                   <input
                     type="date"
                     required
                     value={newEmp.date_of_joining}
                     onChange={(e) => setNewEmp({ ...newEmp, date_of_joining: e.target.value })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Phone</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Phone</label>
                   <input
                     type="text"
                     required
                     value={newEmp.phone_number}
                     onChange={(e) => setNewEmp({ ...newEmp, phone_number: e.target.value })}
-                    className="w-full rounded-xl border border-slate-800 bg-[#0B0F19] px-3.5 py-2 text-sm text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition-colors font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={modalLoading}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                  className="px-5 py-2 rounded-lg bg-indigo-600 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors disabled:opacity-50"
                 >
                   {modalLoading ? "Saving..." : "Create Employee"}
                 </button>
