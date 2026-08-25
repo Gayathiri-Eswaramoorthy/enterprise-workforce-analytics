@@ -5,11 +5,10 @@ Base model providing shared attributes for all database models.
 import uuid
 from datetime import datetime
 
+from app.database.base import Base
 from sqlalchemy import DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.database.base import Base
 
 
 class BaseModel(Base):

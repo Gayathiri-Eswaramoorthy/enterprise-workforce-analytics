@@ -5,10 +5,9 @@ Database session management, engine initialization, and dependencies.
 import logging
 from collections.abc import Generator
 
+from app.config.settings import settings
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
-
-from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

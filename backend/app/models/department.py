@@ -5,11 +5,10 @@ Department database model.
 import uuid
 from typing import TYPE_CHECKING, Optional
 
+from app.database import BaseModel
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import BaseModel
 
 if TYPE_CHECKING:
     from app.models.job_role import JobRole

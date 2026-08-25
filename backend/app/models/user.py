@@ -5,11 +5,10 @@ User database model.
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from app.database import BaseModel, UserRole
 from sqlalchemy import DateTime, String
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import BaseModel, UserRole
 
 if TYPE_CHECKING:
     from app.models.audit_log import AuditLog

@@ -6,11 +6,10 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from app.database import BaseModel
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import BaseModel
 
 if TYPE_CHECKING:
     from app.models.user import User

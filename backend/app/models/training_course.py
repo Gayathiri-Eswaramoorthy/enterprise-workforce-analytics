@@ -5,11 +5,10 @@ TrainingCourse database model.
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from app.database import BaseModel, DifficultyLevel, TrainingMode
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import BaseModel, DifficultyLevel, TrainingMode
 
 if TYPE_CHECKING:
     from app.models.training_enrollment import TrainingEnrollment

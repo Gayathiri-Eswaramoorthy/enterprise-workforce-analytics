@@ -1,13 +1,12 @@
 import logging
 from contextlib import asynccontextmanager
 
+from app.api.v1.api import api_router
+from app.config.logging import setup_logging
+from app.config.settings import settings
+from app.database import verify_db_connection
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from app.api.v1.health import router as health_router
-from app.core.config import settings
-from app.core.logging import setup_logging
-from app.database.connection import verify_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -52,4 +51,4 @@ def root_health():
 
 
 # Mount API routes
-app.include_router(health_router, prefix=settings.API_V1_STR, tags=["Health"])
+app.include_router(api_router, prefix=settings.API_V1_STR)

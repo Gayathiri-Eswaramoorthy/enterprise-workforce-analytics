@@ -4,10 +4,9 @@ Skill database model.
 
 from typing import TYPE_CHECKING
 
+from app.database import BaseModel
 from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import BaseModel
 
 if TYPE_CHECKING:
     from app.models.employee_skill import EmployeeSkill

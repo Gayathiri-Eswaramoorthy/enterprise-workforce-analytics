@@ -1,0 +1,277 @@
+import React, { useState, useEffect } from "react";
+import api from "../services/api";
+import type { DashboardMetrics } from "../types";
+import {
+  Users,
+  Activity,
+  AlertTriangle,
+  Award,
+  ChevronRight,
+  TrendingUp,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+} from "recharts";
+
+export const DashboardPage: React.FC = () => {
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const res = await api.get("/dashboard/summary");
+        setMetrics(res.data);
+      } catch (err) {
+        console.error("Error loading dashboard metrics", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMetrics();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-96 w-full items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (!metrics) return null;
+
+  // Pie chart risk distribution data
+  const riskData = [
+    { name: "Low Risk", value: metrics.risk_distribution.low, color: "#10B981" },
+    { name: "Medium Risk", value: metrics.risk_distribution.medium, color: "#F59E0B" },
+    { name: "High Risk", value: metrics.risk_distribution.high, color: "#EF4444" },
+    { name: "Critical Risk", value: metrics.risk_distribution.critical, color: "#8B5CF6" },
+  ].filter((item) => item.value > 0);
+
+  // Bar chart headcount data
+  const headcountData = metrics.department_distribution.map((d) => ({
+    name: d.code,
+    headcount: d.headcount,
+  }));
+
+  // Area chart performance history data
+  const performanceData = metrics.performance_trends.map((t) => ({
+    name: t.period,
+    rating: parseFloat(t.average_score.toFixed(1)),
+  }));
+
+  return (
+    <div className="space-y-8">
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Active Workforce */}
+        <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-6 shadow-sm flex items-center gap-5">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+            <Users className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-slate-400 block uppercase tracking-wider">
+              Total Workforce
+            </span>
+            <span className="text-2xl font-bold text-slate-100">{metrics.total_employees}</span>
+          </div>
+        </div>
+
+        {/* At-Risk Headcount */}
+        <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-6 shadow-sm flex items-center gap-5">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-slate-400 block uppercase tracking-wider">
+              High Attrition Risk
+            </span>
+            <span className="text-2xl font-bold text-slate-100">
+              {metrics.high_risk_employees_count}
+            </span>
+          </div>
+        </div>
+
+        {/* Avg Performance rating */}
+        <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-6 shadow-sm flex items-center gap-5">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+            <Award className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-slate-400 block uppercase tracking-wider">
+              Average Performance
+            </span>
+            <span className="text-2xl font-bold text-slate-100">
+              {metrics.average_performance_score ? metrics.average_performance_score.toFixed(1) : "N/A"}/100
+            </span>
+          </div>
+        </div>
+
+        {/* Active recommendations */}
+        <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-6 shadow-sm flex items-center gap-5">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400">
+            <Activity className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-slate-400 block uppercase tracking-wider">
+              Active Courses
+            </span>
+            <span className="text-2xl font-bold text-slate-100">8</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Headcount breakdown */}
+        <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-6 lg:col-span-2">
+          <h3 className="text-sm font-semibold tracking-tight text-slate-200 mb-6 uppercase tracking-wider">
+            Department Headcount Distribution
+          </h3>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={headcountData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
+                <XAxis dataKey="name" stroke="#64748B" />
+                <YAxis stroke="#64748B" />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#0F1524", borderColor: "#334155" }}
+                  labelStyle={{ color: "#E2E8F0" }}
+                />
+                <Bar dataKey="headcount" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Risk Distribution Chart */}
+        <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-6">
+          <h3 className="text-sm font-semibold tracking-tight text-slate-200 mb-6 uppercase tracking-wider">
+            Attrition Risk Segmentation
+          </h3>
+          <div className="h-60 flex items-center justify-center relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={riskData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {riskData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#0F1524", borderColor: "#334155" }}
+                  itemStyle={{ color: "#E2E8F0" }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute flex flex-col items-center">
+              <span className="text-2xl font-bold">{metrics.high_risk_employees_count}</span>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold">At Risk</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-4">
+            {riskData.map((item, index) => (
+              <div key={index} className="flex items-center gap-1.5 text-xs text-slate-300">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }}></span>
+                {item.name}: {item.value}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Second Analytics Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Performance Trends */}
+        <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-6">
+          <h3 className="text-sm font-semibold tracking-tight text-slate-200 mb-6 uppercase tracking-wider">
+            Performance Index Trend
+          </h3>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={performanceData}>
+                <defs>
+                  <linearGradient id="colorRating" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
+                <XAxis dataKey="name" stroke="#64748B" />
+                <YAxis stroke="#64748B" domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#0F1524", borderColor: "#334155" }}
+                  itemStyle={{ color: "#E2E8F0" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="rating"
+                  stroke="#10B981"
+                  fillOpacity={1}
+                  fill="url(#colorRating)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Top Skill Gaps */}
+        <div className="rounded-2xl border border-slate-800 bg-[#0F1524] p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-sm font-semibold tracking-tight text-slate-200 uppercase tracking-wider">
+              Top Organizational Skill Gaps
+            </h3>
+            <Link
+              to="/skills"
+              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
+            >
+              Catalog <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          <div className="divide-y divide-slate-800/60 max-h-72 overflow-y-auto pr-1">
+            {metrics.top_skill_gaps.map((gap, index) => (
+              <div key={index} className="py-3 flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-slate-200">{gap.skill_name}</h4>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                    Code: {gap.skill_code}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-300 font-semibold">
+                    <TrendingUp className="h-3.5 w-3.5 text-indigo-400" />
+                    {gap.affected_employees_count} Affected
+                  </span>
+                  <p className="text-[10px] text-slate-400">Avg Gap: {gap.avg_proficiency_gap.toFixed(1)} pts</p>
+                </div>
+              </div>
+            ))}
+            {metrics.top_skill_gaps.length === 0 && (
+              <p className="text-sm text-slate-500 py-6 text-center">No critical skill gaps identified.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

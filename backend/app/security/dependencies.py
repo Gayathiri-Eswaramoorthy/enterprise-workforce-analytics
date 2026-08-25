@@ -1,0 +1,116 @@
+"""
+Authentication and security dependencies for FastAPI endpoints.
+"""
+
+from app.config.settings import settings
+from app.database import get_db
+from app.models import User
+from app.schemas.token import TokenType
+from app.security.jwt import decode_token
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import ExpiredSignatureError, JWTError
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+# Define oauth2_scheme for extracting Bearer token
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+
+
+def credentials_exception() -> HTTPException:
+    """
+    Generate a standard HTTP 401 Unauthorized exception for credentials failure.
+
+    Returns:
+        HTTPException with status code 401.
+    """
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def get_current_user(
+    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)  # noqa: B008
+) -> User:
+    """
+    Retrieve the current authenticated user from the database.
+
+    Args:
+        db: Database session.
+        token: Bearer token extracted from the request.
+
+    Returns:
+        The authenticated User model instance.
+
+    Raises:
+        HTTPException: 401 Unauthorized if the token is invalid, expired,
+                       not an access token, or if the user does not exist.
+    """
+    try:
+        payload = decode_token(token)
+        if payload.token_type != TokenType.ACCESS:
+            # Refresh tokens must never authenticate API requests
+            raise credentials_exception()
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except JWTError:
+        raise credentials_exception()
+
+    # Query the user from the database
+    stmt = select(User).where(User.id == payload.sub)
+    user = db.execute(stmt).scalar_one_or_none()
+
+    if user is None:
+        raise credentials_exception()
+
+    return user
+
+
+def get_current_active_user(
+    current_user: User = Depends(get_current_user),  # noqa: B008
+) -> User:
+    """
+    Ensure the current authenticated user is active.
+
+    Args:
+        current_user: The authenticated User retrieved from get_current_user.
+
+    Returns:
+        The active User model instance.
+
+    Raises:
+        HTTPException: 403 Forbidden if the user is inactive.
+    """
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user account",
+        )
+    return current_user
+
+
+def require_roles(allowed_roles: list):
+    """
+    Dependency factory to restrict endpoint access by UserRole.
+
+    Args:
+        allowed_roles: List of UserRole values permitted to access the endpoint.
+    """
+
+    def role_checker(
+        current_user: User = Depends(get_current_active_user),  # noqa: B008
+    ) -> User:
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have sufficient permissions to perform this action",
+            )
+        return current_user
+
+    return role_checker

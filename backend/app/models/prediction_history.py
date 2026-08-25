@@ -7,12 +7,11 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from app.database import BaseModel, PredictionType, RiskLevel
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import BaseModel, PredictionType, RiskLevel
 
 if TYPE_CHECKING:
     from app.models.model_registry import ModelRegistry

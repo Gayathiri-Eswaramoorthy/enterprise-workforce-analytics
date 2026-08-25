@@ -1,17 +1,14 @@
 import logging
 
+from app.core.config import settings
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
-
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 # Create the SQLAlchemy Engine
 # pool_pre_ping checks database connection validity on each checkout
-engine = create_engine(
-    settings.SQLALCHEMY_DATABASE_URI, pool_pre_ping=True, pool_recycle=3600
-)
+engine = create_engine(settings.SQLALCHEMY_DATABASE_URI, pool_pre_ping=True, pool_recycle=3600)
 
 # Session factory for handling requests
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

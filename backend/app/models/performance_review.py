@@ -7,6 +7,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from app.database import BaseModel, ReviewCycle
 from sqlalchemy import (
     CheckConstraint,
     Date,
@@ -21,8 +22,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import BaseModel, ReviewCycle
 
 if TYPE_CHECKING:
     from app.models.user import User

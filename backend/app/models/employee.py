@@ -6,12 +6,11 @@ import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 
+from app.database import BaseModel, EmploymentStatus, EmploymentType, Gender, WorkMode
 from sqlalchemy import Date, DateTime, ForeignKey, String
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import BaseModel, EmploymentStatus, EmploymentType, Gender, WorkMode
 
 if TYPE_CHECKING:
     from app.models.department import Department
