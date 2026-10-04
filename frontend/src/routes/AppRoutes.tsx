@@ -1,23 +1,46 @@
+import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "../contexts/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { Layout } from "../layouts/Layout";
 import { LoginPage } from "../pages/LoginPage";
-import { DashboardPage } from "../pages/DashboardPage";
-import { EmployeesPage } from "../pages/EmployeesPage";
-import { EmployeeDetailsPage } from "../pages/EmployeeDetailsPage";
-import { DepartmentsPage } from "../pages/DepartmentsPage";
-import { SkillsPage } from "../pages/SkillsPage";
-import { PredictionsPage } from "../pages/PredictionsPage";
-import { RecommendationsPage } from "../pages/RecommendationsPage";
-import { TrainingPage } from "../pages/TrainingPage";
-import { NotificationsPage } from "../pages/NotificationsPage";
-import { AuditLogsPage } from "../pages/AuditLogsPage";
+
+const DashboardPage = lazy(() => import("../pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const MyDashboardPage = lazy(() => import("../pages/MyDashboardPage").then((m) => ({ default: m.MyDashboardPage })));
+const EmployeesPage = lazy(() => import("../pages/EmployeesPage").then((m) => ({ default: m.EmployeesPage })));
+const EmployeeDetailsPage = lazy(() =>
+  import("../pages/EmployeeDetailsPage").then((m) => ({ default: m.EmployeeDetailsPage }))
+);
+const DepartmentsPage = lazy(() => import("../pages/DepartmentsPage").then((m) => ({ default: m.DepartmentsPage })));
+const SkillsPage = lazy(() => import("../pages/SkillsPage").then((m) => ({ default: m.SkillsPage })));
+const PredictionsPage = lazy(() => import("../pages/PredictionsPage").then((m) => ({ default: m.PredictionsPage })));
+const RecommendationsPage = lazy(() =>
+  import("../pages/RecommendationsPage").then((m) => ({ default: m.RecommendationsPage }))
+);
+const TrainingPage = lazy(() => import("../pages/TrainingPage").then((m) => ({ default: m.TrainingPage })));
+const NotificationsPage = lazy(() =>
+  import("../pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage }))
+);
+const AuditLogsPage = lazy(() => import("../pages/AuditLogsPage").then((m) => ({ default: m.AuditLogsPage })));
+
+const RouteFallback = () => (
+  <div className="flex h-full w-full items-center justify-center py-24">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+  </div>
+);
+
+// Organization-wide analytics for HR; a personal self-service view for employees
+const HomePage = () => {
+  const { user } = useAuth();
+  return user?.role === "EMPLOYEE" ? <MyDashboardPage /> : <DashboardPage />;
+};
 
 export default function AppRoutes() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
@@ -26,7 +49,7 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               {/* Common Access Pages */}
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/" element={<HomePage />} />
               <Route path="/departments" element={<DepartmentsPage />} />
               <Route path="/skills" element={<SkillsPage />} />
               <Route path="/training" element={<TrainingPage />} />
@@ -50,6 +73,7 @@ export default function AppRoutes() {
           {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );

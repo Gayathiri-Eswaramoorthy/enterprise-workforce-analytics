@@ -11,9 +11,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 logger = logging.getLogger(__name__)
 
-# Create the SQLAlchemy engine using settings.DATABASE_URL directly
+# Create the SQLAlchemy engine using the normalized psycopg v3 connection URI
 engine = create_engine(
-    settings.DATABASE_URL,
+    settings.SQLALCHEMY_DATABASE_URI,
     pool_pre_ping=True,
     pool_recycle=3600,
 )

@@ -46,6 +46,8 @@ def _create_token(
         "token_type": token_type.value,
         "exp": int(expire.timestamp()),
         "iat": int(now.timestamp()),
+        # Unique token ID so individual tokens can be revoked (logout, refresh rotation)
+        "jti": uuid.uuid4().hex,
     }
 
     if audience:

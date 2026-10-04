@@ -17,11 +17,17 @@ from app.schemas.skill import (
     EmployeeSkillResponse,
     EmployeeSkillUpdate,
 )
-from app.security import get_current_active_user, require_roles
+from app.security import (
+    ensure_employee_access,
+    get_current_active_user,
+    get_linked_employee_id,
+    require_hr,
+    require_roles,
+)
 from app.services.audit_service import AuditService
 from app.services.employee_service import EmployeeService
 from app.services.skill_service import SkillService
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -35,7 +41,10 @@ audit_service = AuditService()
     response_model=EmployeePaginatedResponse,
     status_code=status.HTTP_200_OK,
     summary="List Employees",
-    description="List employees with search, department/role filtering, pagination, and sorting.",
+    description=(
+        "List employees with search, department/role filtering, pagination, and sorting. "
+        "Restricted to HR roles."
+    ),
 )
 def list_employees(
     search: str | None = Query(None, description="Search by name, employee code, or email"),
@@ -48,7 +57,7 @@ def list_employees(
     sort_by: str = Query("created_at", description="Sort field"),
     sort_desc: bool = Query(True, description="Sort descending"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_hr),
 ) -> EmployeePaginatedResponse:
     return employee_service.list_employees(
         db=db,
@@ -91,17 +100,41 @@ def create_employee(
 
 
 @router.get(
+    "/me",
+    response_model=EmployeeDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get My Employee Profile",
+    description="Retrieve the employee profile linked to the authenticated user account.",
+)
+def get_my_employee_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> EmployeeDetailResponse:
+    employee_id = get_linked_employee_id(db, current_user)
+    if employee_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No employee profile is linked to this account",
+        )
+    return employee_service.get_employee_detail(db=db, employee_id=employee_id)
+
+
+@router.get(
     "/{employee_id}",
     response_model=EmployeeDetailResponse,
     status_code=status.HTTP_200_OK,
     summary="Get Employee Detail",
-    description="Retrieve comprehensive employee profile, relations, and assigned skills.",
+    description=(
+        "Retrieve comprehensive employee profile, relations, and assigned skills. "
+        "Employees may only request their own profile."
+    ),
 )
 def get_employee(
     employee_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> EmployeeDetailResponse:
+    ensure_employee_access(db, current_user, employee_id)
     return employee_service.get_employee_detail(db=db, employee_id=employee_id)
 
 

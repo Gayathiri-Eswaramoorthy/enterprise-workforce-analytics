@@ -14,6 +14,7 @@ from app.models.notification import Notification
 from app.models.performance_review import PerformanceReview
 from app.models.prediction_history import PredictionHistory
 from app.models.recommendation import Recommendation
+from app.models.revoked_token import RevokedToken
 from app.models.role_skill import RoleSkill
 from app.models.skill import Skill
 from app.models.training_course import TrainingCourse
@@ -33,6 +34,7 @@ __all__ = [
     "PerformanceReview",
     "PredictionHistory",
     "Recommendation",
+    "RevokedToken",
     "RoleSkill",
     "Skill",
     "TrainingCourse",

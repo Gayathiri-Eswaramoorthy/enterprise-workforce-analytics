@@ -30,6 +30,8 @@ export interface User {
   role: UserRole;
   is_active: boolean;
   last_login?: string;
+  /** Employee record owned by this login (self-service), if any */
+  employee_id?: string | null;
 }
 
 export interface Department {
@@ -167,6 +169,18 @@ export interface PerformanceReview {
   created_at: string;
 }
 
+export interface PerformanceTrendSummary {
+  employee_id: string;
+  total_reviews: number;
+  latest_rating?: number | null;
+  latest_score?: number | null;
+  average_rating?: number | null;
+  average_score?: number | null;
+  rating_change?: number | null;
+  trend: "IMPROVING" | "STABLE" | "DECLINING";
+  recent_reviews: PerformanceReview[];
+}
+
 export interface TrainingCourse {
   id: string;
   course_code: string;
@@ -178,7 +192,9 @@ export interface TrainingCourse {
   training_mode: TrainingMode;
   is_active: boolean;
   created_at: string;
-  target_skills?: Array<{
+  enrolled_count?: number | null;
+  completed_count?: number | null;
+  training_skills?: Array<{
     id: string;
     skill_id: string;
     skill?: Skill;
@@ -196,13 +212,9 @@ export interface TrainingEnrollment {
   certificate_issued: boolean;
   feedback_rating?: number;
   created_at: string;
-  training_course?: TrainingCourse;
-  employee?: {
-    id: string;
-    employee_code: string;
-    first_name: string;
-    last_name: string;
-  };
+  employee_name?: string;
+  employee_code?: string;
+  course?: TrainingCourse;
 }
 
 export interface SkillGapItem {
@@ -213,7 +225,7 @@ export interface SkillGapItem {
   required_proficiency: number;
   current_proficiency: number;
   gap: number;
-  mandatory: boolean;
+  is_mandatory: boolean;
   severity: GapSeverity;
 }
 
@@ -225,10 +237,25 @@ export interface EmployeeSkillGapReport {
   job_role_title?: string;
   department_name?: string;
   total_required_skills: number;
-  total_gaps_identified: number;
+  skills_with_gap: number;
   critical_gaps_count: number;
   overall_skill_match_percentage: number;
   gaps: SkillGapItem[];
+}
+
+export interface ModelRegistryEntry {
+  id: string;
+  model_name: string;
+  model_version: string;
+  algorithm: string;
+  training_dataset: string;
+  accuracy: string;
+  precision_score: string;
+  recall_score: string;
+  f1_score: string;
+  is_active: boolean;
+  deployed_at?: string | null;
+  created_at: string;
 }
 
 export interface ContributingFactor {
@@ -240,13 +267,33 @@ export interface ContributingFactor {
 export interface PredictionResult {
   id: string;
   employee_id: string;
-  model_id?: string;
+  employee_name?: string;
+  employee_code?: string;
+  model_version: string;
+  algorithm: string;
   prediction_type: PredictionType;
   prediction_score: number;
+  confidence_score?: number | null;
   risk_level: RiskLevel;
   prediction_result: string;
-  explanation_summary?: string;
+  prediction_reason?: string | null;
   contributing_factors: ContributingFactor[];
+  generated_at: string;
+}
+
+/** Stored prediction log row (no factor breakdown - that is only returned by a live run) */
+export interface PredictionHistoryItem {
+  id: string;
+  employee_id: string;
+  employee_name?: string;
+  employee_code?: string;
+  model_version?: string;
+  prediction_type: PredictionType;
+  prediction_score: number | string;
+  confidence_score?: number | string | null;
+  risk_level: RiskLevel;
+  prediction_result: string;
+  prediction_reason?: string | null;
   generated_at: string;
 }
 
@@ -260,15 +307,12 @@ export interface Recommendation {
   action_plan?: string;
   recommended_course_id?: string;
   status: RecommendationStatus;
-  generated_by: string;
+  generated_at: string;
   created_at: string;
-  recommended_course?: TrainingCourse;
-  employee?: {
-    id: string;
-    employee_code: string;
-    first_name: string;
-    last_name: string;
-  };
+  employee_name?: string;
+  employee_code?: string;
+  department_name?: string;
+  job_role_title?: string;
 }
 
 export interface Notification {
@@ -303,6 +347,12 @@ export interface DashboardMetrics {
   active_employees: number;
   high_risk_employees_count: number;
   average_performance_score: number;
+  total_skill_gaps_count: number;
+  critical_skill_gaps_count: number;
+  pending_recommendations_count: number;
+  training_completion_rate: number;
+  total_training_courses: number;
+  active_enrollments: number;
   department_distribution: Array<{
     department_id: string;
     name: string;

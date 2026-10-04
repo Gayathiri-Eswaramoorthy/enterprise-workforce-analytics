@@ -45,6 +45,14 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    """
+    Schema for logout; the refresh token is revoked alongside the access token.
+    """
+
+    refresh_token: str | None = None
+
+
 class CurrentUserResponse(BaseModel):
     """
     Schema for representing safe user information.
@@ -57,5 +65,6 @@ class CurrentUserResponse(BaseModel):
     role: UserRole
     is_active: bool
     last_login: datetime | None = None
+    employee_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)

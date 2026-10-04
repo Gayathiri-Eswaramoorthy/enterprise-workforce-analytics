@@ -22,8 +22,8 @@ class Settings(BaseSettings):
             if isinstance(v, str):
                 try:
                     return json.loads(v)
-                except json.JSONDecodeError:
-                    pass
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Invalid BACKEND_CORS_ORIGINS JSON: {v!r}") from e
             return v
         raise ValueError(v)
 
@@ -36,6 +36,24 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Account lockout after repeated failed logins
+    LOGIN_MAX_FAILED_ATTEMPTS: int = 5
+    LOGIN_LOCKOUT_MINUTES: int = 15
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def forbid_placeholder_secret_in_production(cls, v: str, info) -> str:
+        environment = info.data.get("ENVIRONMENT", "development")
+        if (
+            environment == "production"
+            and v == "placeholder_key_please_change_in_env_file_for_security"
+        ):
+            raise ValueError(
+                "SECRET_KEY is still the default placeholder. Set a unique SECRET_KEY "
+                "in the environment before running in production."
+            )
+        return v
+
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         # Standardize and explicitly set driver to psycopg (v3)
@@ -46,10 +64,12 @@ class Settings(BaseSettings):
             url = url.replace("postgresql://", "postgresql+psycopg://", 1)
         return url
 
-    # Load from root workspace directory .env
+    # Load from root workspace directory .env (backend/app/config -> repo root)
     model_config = SettingsConfigDict(
         env_file=os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            ),
             ".env",
         ),
         env_file_encoding="utf-8",

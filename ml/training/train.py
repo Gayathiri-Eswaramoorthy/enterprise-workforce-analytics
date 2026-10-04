@@ -5,8 +5,6 @@ serializes the best model artifact, and registers metadata into PostgreSQL Model
 
 import os
 import sys
-from datetime import datetime, timezone
-from decimal import Decimal
 
 import joblib
 from sklearn.compose import ColumnTransformer
@@ -27,7 +25,7 @@ if backend_dir not in sys.path:
 
 
 from app.database import SessionLocal
-from app.models import ModelRegistry
+from app.services.prediction_service import register_model_from_metadata
 
 from ml.datasets.dataset_generator import generate_workforce_dataset
 
@@ -235,88 +233,53 @@ def train_and_register_model(dataset_size: int = 5000, version: str = "v1.1.0"):
 
     # Save feature metadata with the artifact for explainability
     meta_path = os.path.join(artifacts_dir, "model_metadata.joblib")
-    joblib.dump(
-        {
-            "version": version,
-            "algorithm": best_algorithm,
-            "categorical_features": categorical_features,
-            "numerical_features": numerical_features,
-            "random_state": 42,
-            "dataset_size": dataset_size,
-            "cross_validation_folds": 5,
-            "cv_metrics": {
-                "rf": {k: float(np.mean(v)) for k, v in rf_metrics.items()},
-                "gb": {k: float(np.mean(v)) for k, v in gb_metrics.items()},
-            },
-            "validation_metrics": {
-                "accuracy": float(val_acc),
-                "precision": float(val_prec),
-                "recall": float(val_rec),
-                "f1": float(val_f1),
-                "roc_auc": float(val_roc_auc),
-            },
-            "final_test_metrics": {
-                "accuracy": float(test_acc),
-                "precision": float(test_prec),
-                "recall": float(test_rec),
-                "f1": float(test_f1),
-                "roc_auc": float(test_roc_auc),
-                "confusion_matrix": test_cm.tolist(),
-            },
-            "feature_importances": (
-                dict(
-                    zip(
-                        numerical_features,
-                        final_pipeline.named_steps["classifier"].feature_importances_[
-                            : len(numerical_features)
-                        ],
-                    )
-                )
-                if hasattr(final_pipeline.named_steps["classifier"], "feature_importances_")
-                else {}
-            ),
+    metadata = {
+        "version": version,
+        "algorithm": best_algorithm,
+        "categorical_features": categorical_features,
+        "numerical_features": numerical_features,
+        "random_state": 42,
+        "dataset_size": dataset_size,
+        "cross_validation_folds": 5,
+        "cv_metrics": {
+            "rf": {k: float(np.mean(v)) for k, v in rf_metrics.items()},
+            "gb": {k: float(np.mean(v)) for k, v in gb_metrics.items()},
         },
-        meta_path,
-    )
+        "validation_metrics": {
+            "accuracy": float(val_acc),
+            "precision": float(val_prec),
+            "recall": float(val_rec),
+            "f1": float(val_f1),
+            "roc_auc": float(val_roc_auc),
+        },
+        "final_test_metrics": {
+            "accuracy": float(test_acc),
+            "precision": float(test_prec),
+            "recall": float(test_rec),
+            "f1": float(test_f1),
+            "roc_auc": float(test_roc_auc),
+            "confusion_matrix": test_cm.tolist(),
+        },
+        "feature_importances": (
+            dict(
+                zip(
+                    numerical_features,
+                    final_pipeline.named_steps["classifier"].feature_importances_[
+                        : len(numerical_features)
+                    ],
+                )
+            )
+            if hasattr(final_pipeline.named_steps["classifier"], "feature_importances_")
+            else {}
+        ),
+    }
+    joblib.dump(metadata, meta_path)
 
-    # Register in PostgreSQL ModelRegistry
+    # Register in PostgreSQL ModelRegistry. If the DB is unreachable now, the backend
+    # registers the artifact from this metadata file on its first prediction instead.
     try:
         with SessionLocal() as db:
-            # Set older models inactive
-            db.query(ModelRegistry).filter(ModelRegistry.is_active == True).update(
-                {"is_active": False}
-            )
-
-            existing = (
-                db.query(ModelRegistry).filter(ModelRegistry.model_version == version).first()
-            )
-            if existing:
-                existing.model_name = "Workforce Attrition & Risk Predictor"
-                existing.algorithm = best_algorithm
-                existing.training_dataset = f"Synthetic Workforce Dataset ({dataset_size} samples)"
-                existing.accuracy = Decimal(str(round(test_acc * 100, 2)))
-                existing.precision_score = Decimal(str(round(test_prec * 100, 2)))
-                existing.recall_score = Decimal(str(round(test_rec * 100, 2)))
-                existing.f1_score = Decimal(str(round(test_f1 * 100, 2)))
-                existing.model_file_path = model_path
-                existing.is_active = True
-                existing.deployed_at = datetime.now(timezone.utc)
-            else:
-                registry_entry = ModelRegistry(
-                    model_name="Workforce Attrition & Risk Predictor",
-                    model_version=version,
-                    algorithm=best_algorithm,
-                    training_dataset=f"Synthetic Workforce Dataset ({dataset_size} samples)",
-                    accuracy=Decimal(str(round(test_acc * 100, 2))),
-                    precision_score=Decimal(str(round(test_prec * 100, 2))),
-                    recall_score=Decimal(str(round(test_rec * 100, 2))),
-                    f1_score=Decimal(str(round(test_f1 * 100, 2))),
-                    model_file_path=model_path,
-                    is_active=True,
-                    deployed_at=datetime.now(timezone.utc),
-                )
-                db.add(registry_entry)
-            db.commit()
+            register_model_from_metadata(db, metadata, model_path)
             print(f"[ML Pipeline] Successfully registered model {version} in ModelRegistry table.")
     except Exception as e:
         print(f"[ML Pipeline] Warning: Could not register model in DB: {e}")

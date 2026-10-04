@@ -1,5 +1,13 @@
 import logging
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Ensure the repo root (containing the sibling `ml` package) is importable
+# regardless of the working directory the server is launched from.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from app.api.v1.api import api_router
 from app.config.logging import setup_logging

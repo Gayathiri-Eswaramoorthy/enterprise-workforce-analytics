@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.database import PriorityLevel, RecommendationStatus, RecommendationType
 from app.models import (
+    Employee,
     Recommendation,
 )
 from app.repositories.employee_repository import EmployeeRepository
@@ -18,6 +19,7 @@ from app.schemas.recommendation import (
 )
 from app.services.skill_gap_service import SkillGapService
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 
@@ -72,6 +74,25 @@ class RecommendationService:
         """
         Derive intelligent, grounded recommendations from skill gaps and performance/attrition risk.
         """
+        self._create_recommendations(db, employee_id)
+
+        # Return all recommendations for the employee
+        all_recs = self.repository.list_recommendations(db, employee_id=employee_id, limit=50)[0]
+        return [self._format_response(r) for r in all_recs]
+
+    def generate_recommendations_for_all(self, db: Session) -> int:
+        """
+        Generate recommendations for every active (non-deleted) employee.
+
+        Returns:
+            Number of new recommendations created.
+        """
+        employee_ids = db.execute(
+            select(Employee.id).where(Employee.is_deleted == False)  # noqa: E712
+        ).scalars()
+        return sum(len(self._create_recommendations(db, emp_id)) for emp_id in employee_ids.all())
+
+    def _create_recommendations(self, db: Session, employee_id: UUID) -> list[Recommendation]:
         emp = self.employee_repo.get_by_id_with_relations(db, employee_id)
         if not emp:
             raise HTTPException(
@@ -80,8 +101,10 @@ class RecommendationService:
             )
 
         gap_report = self.skill_gap_service.calculate_employee_skill_gaps(db, employee_id)
+        # Dedupe against every status, so an accepted/rejected/completed recommendation
+        # isn't recreated as a fresh PENDING one on the next run.
         existing_recs = self.repository.list_recommendations(
-            db, employee_id=employee_id, status=RecommendationStatus.PENDING, limit=100
+            db, employee_id=employee_id, limit=1000
         )[0]
         existing_titles = {r.title for r in existing_recs}
 
@@ -148,12 +171,7 @@ class RecommendationService:
 
         if new_recs:
             db.commit()
-            for r in new_recs:
-                db.refresh(r)
-
-        # Return all pending recommendations
-        all_recs = self.repository.list_recommendations(db, employee_id=employee_id, limit=50)[0]
-        return [self._format_response(r) for r in all_recs]
+        return new_recs
 
     def _format_response(self, rec: Recommendation) -> RecommendationResponse:
         resp = RecommendationResponse.model_validate(rec)

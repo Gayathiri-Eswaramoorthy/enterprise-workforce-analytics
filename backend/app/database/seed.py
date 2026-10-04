@@ -2,7 +2,8 @@
 Deterministic development database seeder for Enterprise Workforce Predictive Analytics.
 
 NOTE: This script seeds organizational structure, users, skills, employees,
-reviews, and training courses.
+reviews, and training courses, then scores every employee with the trained ML model
+and generates recommendations so the app is fully populated on first launch.
 Per project architecture, ML model training is decoupled and executed separately via ml/training/train.py.
 """
 
@@ -11,10 +12,12 @@ import sys
 from datetime import date, timedelta
 from decimal import Decimal
 
-# Add backend directory to sys.path
+# Add backend directory (for `app`) and repo root (for the sibling `ml` package) to sys.path
 backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
+repo_root = os.path.dirname(backend_dir)
+for path in (backend_dir, repo_root):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 from app.database import (
     DifficultyLevel,
@@ -34,6 +37,7 @@ from app.models import (
     Employee,
     EmployeeSkill,
     JobRole,
+    ModelRegistry,
     Notification,
     PerformanceReview,
     PredictionHistory,
@@ -46,6 +50,9 @@ from app.models import (
     User,
 )
 from app.security import hash_password
+
+# Employee record owned by the demo EMPLOYEE login (demo@workforce.local)
+DEMO_EMPLOYEE_CODE = "EMP-ENG-018"
 
 
 def generate_50_employees():
@@ -463,6 +470,8 @@ def seed_database():
         print("[Seed] Safely resetting employee and predictive analytics tables...")
         db.query(Recommendation).delete()
         db.query(PredictionHistory).delete()
+        # Registry is re-populated from the trained artifact on the first prediction below
+        db.query(ModelRegistry).delete()
         db.query(Notification).delete()
         db.query(PerformanceReview).delete()
         db.query(TrainingEnrollment).delete()
@@ -472,29 +481,30 @@ def seed_database():
 
         # 1. Seed Demo Users
         print("[Seed] 1/7 Seeding Users...")
-        default_pwd_hash = hash_password("Password123!")
+        default_pwd_hash = hash_password("demo1234")
 
         users_data = [
             {
                 "username": "admin",
                 "email": "admin@workforce.local",
-                "display_name": "Eleanor Vance (HR Admin)",
+                "display_name": "Eleanor Vance",
                 "role": UserRole.HR_ADMIN,
                 "password_hash": default_pwd_hash,
                 "is_active": True,
             },
             {
-                "username": "hrmanager",
-                "email": "manager@workforce.local",
-                "display_name": "Marcus Thorne (HR Manager)",
+                "username": "user",
+                "email": "user@workforce.local",
+                "display_name": "Marcus Thorne",
                 "role": UserRole.HR_MANAGER,
                 "password_hash": default_pwd_hash,
                 "is_active": True,
             },
             {
-                "username": "employee",
-                "email": "employee@workforce.local",
-                "display_name": "Sarah Connor (Staff Engineer)",
+                "username": "demo",
+                "email": "demo@workforce.local",
+                # Linked to employee DEMO_EMPLOYEE_CODE below for the self-service view
+                "display_name": "Sarah Johnson",
                 "role": UserRole.EMPLOYEE,
                 "password_hash": default_pwd_hash,
                 "is_active": True,
@@ -515,9 +525,12 @@ def seed_database():
                 user_map[u_data["username"]] = user
             else:
                 existing.email = u_data["email"]
+                existing.display_name = u_data["display_name"]
                 existing.password_hash = default_pwd_hash
                 existing.role = u_data["role"]
                 existing.is_active = True
+                existing.failed_login_attempts = 0
+                existing.locked_until = None
                 db.flush()
                 user_map[u_data["username"]] = existing
 
@@ -528,7 +541,7 @@ def seed_database():
                 "department_code": "ENG",
                 "name": "Engineering",
                 "description": "Software architecture, cloud infrastructure, and product development.",
-                "hr_manager_user_id": user_map["hrmanager"].id,
+                "hr_manager_user_id": user_map["user"].id,
             },
             {
                 "department_code": "HR",
@@ -540,19 +553,19 @@ def seed_database():
                 "department_code": "PROD",
                 "name": "Product & Design",
                 "description": "Product management, UI/UX research, and user experience design.",
-                "hr_manager_user_id": user_map["hrmanager"].id,
+                "hr_manager_user_id": user_map["user"].id,
             },
             {
                 "department_code": "SALES",
                 "name": "Enterprise Sales",
                 "description": "Commercial client relations, enterprise partnerships, and revenue generation.",
-                "hr_manager_user_id": user_map["hrmanager"].id,
+                "hr_manager_user_id": user_map["user"].id,
             },
             {
                 "department_code": "MKT",
                 "name": "Growth & Marketing",
                 "description": "Brand strategy, performance marketing, and market analytics.",
-                "hr_manager_user_id": user_map["hrmanager"].id,
+                "hr_manager_user_id": user_map["user"].id,
             },
         ]
 
@@ -974,6 +987,9 @@ def seed_database():
                 mgr = emp_map.get(e_data["manager_code"])
                 if mgr:
                     emp.manager_id = mgr.id
+
+        # Link the demo EMPLOYEE account to its employee record (self-service access)
+        emp_map[DEMO_EMPLOYEE_CODE].user_id = user_map["demo"].id
         db.flush()
 
         # Third pass: Assign Skills, Performance Reviews, and Enrollments
@@ -1050,7 +1066,20 @@ def seed_database():
                     db.add(en)
 
         db.commit()
-        print("[Seed] 7/7 Database Seeding completed successfully!")
+
+        # Imported here: the services import app.database, which this module is part of
+        from app.services.prediction_service import PredictionService
+        from app.services.recommendation_service import RecommendationService
+
+        print("[Seed] 7/7 Running ML risk predictions & generating recommendations...")
+        predictions = PredictionService().predict_all_employees(db)
+        at_risk = sum(1 for p in predictions if p.risk_level.value in ("HIGH", "CRITICAL"))
+        created_recs = RecommendationService().generate_recommendations_for_all(db)
+        print(
+            f"[Seed]   {len(predictions)} employees scored ({at_risk} high/critical risk), "
+            f"{created_recs} recommendations created."
+        )
+        print("[Seed] Database seeding completed successfully!")
 
     except Exception as e:
         db.rollback()
