@@ -2,11 +2,14 @@
 Authentication and security dependencies for FastAPI endpoints.
 """
 
+from uuid import UUID
+
 from app.config.settings import settings
-from app.database import get_db
-from app.models import User
+from app.database import UserRole, get_db
+from app.models import Employee, User
 from app.schemas.token import TokenType
 from app.security.jwt import decode_token
+from app.security.revocation import is_token_revoked
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import ExpiredSignatureError, JWTError
@@ -62,6 +65,10 @@ def get_current_user(
     except JWTError:
         raise credentials_exception()
 
+    # Reject tokens revoked by logout
+    if is_token_revoked(db, payload.jti):
+        raise credentials_exception()
+
     # Query the user from the database
     stmt = select(User).where(User.id == payload.sub)
     user = db.execute(stmt).scalar_one_or_none()
@@ -114,3 +121,59 @@ def require_roles(allowed_roles: list):
         return current_user
 
     return role_checker
+
+
+HR_ROLES = [UserRole.HR_ADMIN, UserRole.HR_MANAGER]
+
+# Shorthand for endpoints exposing organization-wide HR data
+require_hr = require_roles(HR_ROLES)
+
+
+def get_linked_employee_id(db: Session, user: User) -> UUID | None:
+    """
+    Return the ID of the (non-deleted) employee record linked to a user account, if any.
+    """
+    stmt = select(Employee.id).where(
+        Employee.user_id == user.id, Employee.is_deleted == False
+    )  # noqa: E712
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def ensure_employee_access(db: Session, user: User, employee_id: UUID) -> None:
+    """
+    Allow HR roles to access any employee; restrict everyone else to their own record.
+
+    Raises:
+        HTTPException: 403 Forbidden if a non-HR user requests another employee's data.
+    """
+    if user.role in HR_ROLES:
+        return
+    if get_linked_employee_id(db, user) != employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own employee records",
+        )
+
+
+def scope_employee_filter(
+    db: Session, user: User, requested_employee_id: UUID | None
+) -> UUID | None:
+    """
+    Resolve the employee filter for list endpoints holding per-employee data.
+
+    HR roles get whatever they asked for (None = everyone). Other users are pinned to
+    their own employee record, so they can never list another employee's rows.
+
+    Raises:
+        HTTPException: 403 Forbidden if a non-HR user has no linked employee record,
+                       or asks for a different employee.
+    """
+    if user.role in HR_ROLES:
+        return requested_employee_id
+    own_id = get_linked_employee_id(db, user)
+    if own_id is None or (requested_employee_id is not None and requested_employee_id != own_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own employee records",
+        )
+    return own_id

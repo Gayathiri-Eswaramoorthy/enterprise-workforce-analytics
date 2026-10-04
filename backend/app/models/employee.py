@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from app.models.prediction_history import PredictionHistory
     from app.models.recommendation import Recommendation
     from app.models.training_enrollment import TrainingEnrollment
+    from app.models.user import User
 
 
 class Employee(BaseModel):
@@ -110,6 +111,14 @@ class Employee(BaseModel):
         nullable=True,
         comment="FK reference to the employee's manager (self-reference)",
     )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        unique=True,
+        index=True,
+        nullable=True,
+        comment="FK to the login account owned by this employee (self-service access)",
+    )
     date_of_joining: Mapped[date] = mapped_column(
         Date,
         nullable=False,
@@ -166,6 +175,10 @@ class Employee(BaseModel):
     )
 
     # Relationships
+    user: Mapped[Optional["User"]] = relationship(
+        "User",
+        back_populates="employee_profile",
+    )
     department: Mapped["Department"] = relationship(
         "Department",
         back_populates="employees",

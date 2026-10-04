@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../services/api";
+import api, { getErrorMessage } from "../services/api";
 import type { DashboardMetrics } from "../types";
 import {
   Users,
@@ -28,6 +28,7 @@ import {
 export const DashboardPage: React.FC = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -36,6 +37,7 @@ export const DashboardPage: React.FC = () => {
         setMetrics(res.data);
       } catch (err) {
         console.error("Error loading dashboard metrics", err);
+        setError(getErrorMessage(err, "Could not load dashboard metrics."));
       } finally {
         setLoading(false);
       }
@@ -51,7 +53,13 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  if (!metrics) return null;
+  if (!metrics) {
+    return (
+      <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+        {error ?? "Could not load dashboard metrics."}
+      </div>
+    );
+  }
 
   // Pie chart risk distribution data
   const riskData = [
@@ -76,7 +84,7 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         {/* Active Workforce */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-5">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
@@ -91,7 +99,10 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* At-Risk Headcount */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-5">
+        <Link
+          to="/predictions"
+          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-5 hover:border-rose-200 transition-colors"
+        >
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
             <AlertTriangle className="h-6 w-6" />
           </div>
@@ -103,7 +114,7 @@ export const DashboardPage: React.FC = () => {
               {metrics.high_risk_employees_count}
             </span>
           </div>
-        </div>
+        </Link>
 
         {/* Avg Performance rating */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-5">
@@ -120,18 +131,21 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Active recommendations */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-5">
+        {/* Pending recommendations */}
+        <Link
+          to="/recommendations"
+          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-5 hover:border-sky-200 transition-colors"
+        >
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
             <Activity className="h-6 w-6" />
           </div>
           <div>
             <span className="text-xs font-semibold text-slate-500 block uppercase tracking-wider">
-              Active Courses
+              Pending Actions
             </span>
-            <span className="text-2xl font-bold text-slate-900">8</span>
+            <span className="text-2xl font-bold text-slate-900">{metrics.pending_recommendations_count}</span>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Main Charts Row */}

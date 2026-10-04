@@ -12,7 +12,7 @@ from app.schemas.prediction import (
     PredictionRequest,
     PredictionResult,
 )
-from app.security import get_current_active_user, require_roles
+from app.security import require_hr, require_roles
 from app.services.audit_service import AuditService
 from app.services.prediction_service import PredictionService
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -88,7 +88,7 @@ def predict_all(
     response_model=dict,
     status_code=status.HTTP_200_OK,
     summary="List Prediction History",
-    description="Query historical prediction logs with filtering and pagination.",
+    description="Query historical prediction logs with filtering and pagination. Restricted to HR roles.",
 )
 def list_prediction_history(
     employee_id: UUID | None = Query(None, description="Filter by employee"),
@@ -97,7 +97,7 @@ def list_prediction_history(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_hr),
 ) -> dict:
     items, total = prediction_service.list_history(
         db=db,
@@ -120,10 +120,13 @@ def list_prediction_history(
     response_model=list[ModelRegistryResponse],
     status_code=status.HTTP_200_OK,
     summary="List Model Registry",
-    description="Inspect registered ML model versions and evaluation metrics.",
+    description=(
+        "Inspect registered ML model versions and evaluation metrics. The model artifact on disk "
+        "is registered automatically if it is not in the registry yet. Restricted to HR roles."
+    ),
 )
 def list_models(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_hr),
 ) -> list[ModelRegistryResponse]:
     return prediction_service.list_models(db=db)

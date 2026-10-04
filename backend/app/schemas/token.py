@@ -29,5 +29,6 @@ class TokenPayload(BaseModel):
     token_type: TokenType
     exp: int
     iat: int
+    jti: str
     aud: str | None = None
     iss: str | None = None

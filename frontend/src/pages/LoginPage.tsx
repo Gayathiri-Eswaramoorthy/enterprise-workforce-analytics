@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { getErrorMessage } from "../services/api";
 import { Sparkles, Shield, AlertCircle } from "lucide-react";
 
 export const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -19,8 +20,8 @@ export const LoginPage: React.FC = () => {
     try {
       await login(email, password);
       navigate("/");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Authentication failed. Check your credentials.");
+    } catch (err) {
+      setError(getErrorMessage(err, "Authentication failed. Check your credentials."));
     } finally {
       setLoading(false);
     }
@@ -28,18 +29,21 @@ export const LoginPage: React.FC = () => {
 
   const handleDemoLogin = async (demoEmail: string) => {
     setEmail(demoEmail);
-    setPassword("Password123!");
+    setPassword("demo1234");
     setLoading(true);
     setError(null);
     try {
-      await login(demoEmail, "Password123!");
+      await login(demoEmail, "demo1234");
       navigate("/");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Demo login failed");
+    } catch (err) {
+      setError(getErrorMessage(err, "Demo login failed"));
     } finally {
       setLoading(false);
     }
   };
+
+  // Already signed in (e.g. opened /login in a new tab): go straight to the app
+  if (user) return <Navigate to="/" replace />;
 
   return (
     <div className="flex min-h-screen w-screen bg-[#F8FAFC] text-slate-800 antialiased">
@@ -107,7 +111,7 @@ export const LoginPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoLogin("manager@workforce.local")}
+                onClick={() => handleDemoLogin("user@workforce.local")}
                 className="flex flex-col items-center justify-center p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all text-center group"
               >
                 <span className="text-xs font-semibold text-slate-700 group-hover:text-indigo-700">HR Manager</span>
@@ -115,7 +119,7 @@ export const LoginPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoLogin("employee@workforce.local")}
+                onClick={() => handleDemoLogin("demo@workforce.local")}
                 className="flex flex-col items-center justify-center p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all text-center group"
               >
                 <span className="text-xs font-semibold text-slate-700 group-hover:text-indigo-700">Employee</span>
@@ -134,7 +138,7 @@ export const LoginPage: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@workforce.local"
+                placeholder="admin@workforce.local / user@workforce.local / demo@workforce.local"
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors shadow-sm"
               />
             </div>

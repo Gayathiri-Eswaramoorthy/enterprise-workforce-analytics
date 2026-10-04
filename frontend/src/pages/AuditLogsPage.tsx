@@ -12,7 +12,7 @@ export const AuditLogsPage: React.FC = () => {
     const fetchLogs = async () => {
       setLoading(true);
       try {
-        const params: any = { page: 1, page_size: 50 };
+        const params: Record<string, string | number> = { page: 1, page_size: 50 };
         if (entityFilter) params.entity_name = entityFilter;
         if (actionFilter) params.action = actionFilter;
 
@@ -57,12 +57,15 @@ export const AuditLogsPage: React.FC = () => {
           <option value="PREDICT">PREDICT</option>
           <option value="BATCH_PREDICT">BATCH_PREDICT</option>
           <option value="GENERATE_RECOMMENDATIONS">GENERATE_RECOMMENDATIONS</option>
+          <option value="GENERATE_ALL_RECOMMENDATIONS">GENERATE_ALL_RECOMMENDATIONS</option>
+          <option value="ENROLL">ENROLL</option>
+          <option value="UPDATE_ENROLLMENT">UPDATE_ENROLLMENT</option>
         </select>
       </div>
 
       {/* Logs Table */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm text-slate-700">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto shadow-sm">
+        <table className="w-full min-w-[760px] text-left text-sm text-slate-700">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
             <tr>
               <th className="px-6 py-4">User</th>

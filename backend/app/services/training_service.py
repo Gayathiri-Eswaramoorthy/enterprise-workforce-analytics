@@ -140,6 +140,14 @@ class TrainingService:
         existing = self.repository.get_enrollment(
             db, enroll_in.employee_id, enroll_in.training_course_id
         )
+        if existing and existing.enrollment_status == EnrollmentStatus.DROPPED:
+            # Re-enrolling in a previously dropped course reactivates the same record
+            existing.enrollment_status = enroll_in.enrollment_status
+            existing.enrollment_date = enroll_in.enrollment_date
+            existing.completion_date = None
+            db.commit()
+            db.refresh(existing)
+            return self._format_enrollment_response(db, existing)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -151,6 +159,15 @@ class TrainingService:
         db.commit()
         db.refresh(enrollment)
         return self._format_enrollment_response(db, enrollment)
+
+    def get_enrollment_employee_id(self, db: Session, enrollment_id: UUID) -> UUID:
+        enrollment = self.repository.get_enrollment_by_id(db, enrollment_id)
+        if not enrollment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Training enrollment not found",
+            )
+        return enrollment.employee_id
 
     def update_enrollment(
         self, db: Session, enrollment_id: UUID, enroll_in: TrainingEnrollmentUpdate

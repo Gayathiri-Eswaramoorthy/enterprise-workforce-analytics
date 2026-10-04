@@ -3,16 +3,17 @@ User database model.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from app.database import BaseModel, UserRole
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from app.models.audit_log import AuditLog
     from app.models.department import Department
+    from app.models.employee import Employee
     from app.models.employee_document import EmployeeDocument
     from app.models.notification import Notification
     from app.models.performance_review import PerformanceReview
@@ -64,8 +65,25 @@ class User(BaseModel):
         nullable=True,
         comment="Timestamp of the user's last successful login",
     )
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+        comment="Consecutive failed login attempts since the last successful login",
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Login is refused until this timestamp after too many failed attempts",
+    )
 
     # Relationships
+    employee_profile: Mapped[Optional["Employee"]] = relationship(
+        "Employee",
+        back_populates="user",
+        uselist=False,
+    )
     managed_departments: Mapped[list["Department"]] = relationship(
         "Department",
         back_populates="hr_manager",

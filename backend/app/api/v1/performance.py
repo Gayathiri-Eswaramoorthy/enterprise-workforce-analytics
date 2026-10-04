@@ -11,7 +11,12 @@ from app.schemas.performance import (
     PerformanceReviewResponse,
     PerformanceTrendSummary,
 )
-from app.security import get_current_active_user, require_roles
+from app.security import (
+    ensure_employee_access,
+    get_current_active_user,
+    require_roles,
+    scope_employee_filter,
+)
 from app.services.audit_service import AuditService
 from app.services.performance_service import PerformanceService
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -27,7 +32,10 @@ audit_service = AuditService()
     response_model=dict,
     status_code=status.HTTP_200_OK,
     summary="List Performance Reviews",
-    description="Retrieve performance reviews with filtering and pagination.",
+    description=(
+        "Retrieve performance reviews with filtering and pagination. "
+        "Employees only see their own reviews."
+    ),
 )
 def list_reviews(
     employee_id: UUID | None = Query(None, description="Filter by employee"),
@@ -40,7 +48,7 @@ def list_reviews(
 ) -> dict:
     items, total = performance_service.list_reviews(
         db=db,
-        employee_id=employee_id,
+        employee_id=scope_employee_filter(db, current_user, employee_id),
         reviewer_id=reviewer_id,
         review_cycle=review_cycle,
         page=page,
@@ -94,4 +102,5 @@ def get_employee_performance_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> PerformanceTrendSummary:
+    ensure_employee_access(db, current_user, employee_id)
     return performance_service.get_employee_performance_summary(db=db, employee_id=employee_id)

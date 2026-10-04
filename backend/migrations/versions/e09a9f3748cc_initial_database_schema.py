@@ -414,3 +414,13 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_model_registry_algorithm'), table_name='model_registry')
     op.drop_table('model_registry')
     # ### end Alembic commands ###
+
+    # Postgres enum types outlive the tables that used them; drop them so that
+    # downgrading to base and upgrading again starts from a genuinely empty schema.
+    for enum_name in (
+        'difficulty_level', 'document_type', 'employment_status', 'employment_type',
+        'enrollment_status', 'gender', 'notification_type', 'prediction_type',
+        'priority_level', 'recommendation_status', 'recommendation_type', 'review_cycle',
+        'risk_level', 'training_mode', 'user_role', 'work_mode',
+    ):
+        sa.Enum(name=enum_name).drop(op.get_bind(), checkfirst=True)

@@ -1,19 +1,34 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
 import type { EmployeeListItem, Department, JobRole, RiskLevel } from "../types";
-import { Search, Plus, ArrowRight } from "lucide-react";
+import { Search, Plus, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { RiskBadge } from "../components/RiskBadge";
+
+const PAGE_SIZE = 15;
 
 export const EmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<JobRole[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState<string>("");
   const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Debounce the search box so typing doesn't fire a request per keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // New Employee Modal state
   const [showModal, setShowModal] = useState(false);
@@ -36,21 +51,22 @@ export const EmployeesPage: React.FC = () => {
     overtime_frequency: "NONE",
   });
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { page, page_size: 15 };
+      const params: Record<string, string | number> = { page, page_size: PAGE_SIZE };
       if (search) params.search = search;
       if (selectedDept) params.department_id = selectedDept;
 
       const res = await api.get("/employees", { params });
       setEmployees(res.data.items);
+      setTotal(res.data.total);
     } catch (err) {
       console.error("Failed to fetch employees", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, search, selectedDept]);
 
   const fetchMetadata = async () => {
     try {
@@ -61,15 +77,12 @@ export const EmployeesPage: React.FC = () => {
       setDepartments(deptRes.data);
       setRoles(rolesRes.data);
       if (deptRes.data.length > 0) {
+        const firstDept: Department = deptRes.data[0];
+        const firstRole = (rolesRes.data as JobRole[]).find((r) => r.department_id === firstDept.id);
         setNewEmp((prev) => ({
           ...prev,
-          department_id: deptRes.data[0].id,
-        }));
-      }
-      if (rolesRes.data.length > 0) {
-        setNewEmp((prev) => ({
-          ...prev,
-          job_role_id: rolesRes.data[0].id,
+          department_id: firstDept.id,
+          job_role_id: firstRole?.id ?? "",
         }));
       }
     } catch (err) {
@@ -83,7 +96,14 @@ export const EmployeesPage: React.FC = () => {
 
   useEffect(() => {
     fetchEmployees();
-  }, [page, search, selectedDept]);
+  }, [fetchEmployees]);
+
+  // Only offer job roles that belong to the chosen department
+  const rolesForDept = roles.filter((r) => r.department_id === newEmp.department_id);
+  const handleDeptChange = (departmentId: string) => {
+    const firstRole = roles.find((r) => r.department_id === departmentId);
+    setNewEmp((prev) => ({ ...prev, department_id: departmentId, job_role_id: firstRole?.id ?? "" }));
+  };
 
   const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,23 +112,11 @@ export const EmployeesPage: React.FC = () => {
       await api.post("/employees", newEmp);
       setShowModal(false);
       fetchEmployees();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to create employee record");
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+      alert(typeof detail === "string" ? detail : "Failed to create employee record");
     } finally {
       setModalLoading(false);
-    }
-  };
-
-  const getRiskBadge = (risk?: RiskLevel) => {
-    switch (risk) {
-      case "CRITICAL":
-        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100">Critical</span>;
-      case "HIGH":
-        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-100">High Risk</span>;
-      case "MEDIUM":
-        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">Medium</span>;
-      default:
-        return <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">Low Risk</span>;
     }
   };
 
@@ -116,23 +124,22 @@ export const EmployeesPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header with Search & Filter */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-72">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
-              type="text"
+              type="search"
+              aria-label="Search employees"
               placeholder="Search by name, email, code..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-none shadow-sm"
             />
           </div>
 
           <select
             value={selectedDept}
+            aria-label="Filter by department"
             onChange={(e) => {
               setSelectedDept(e.target.value);
               setPage(1);
@@ -158,7 +165,8 @@ export const EmployeesPage: React.FC = () => {
 
       {/* Employees Table */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm text-slate-700">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[860px] text-left text-sm text-slate-700">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
             <tr>
               <th className="px-6 py-4">Employee</th>
@@ -208,7 +216,7 @@ export const EmployeesPage: React.FC = () => {
                     <span className="text-xs text-slate-500">{emp.department_name || "Department"}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-105 text-slate-700 border border-slate-200 bg-slate-100">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-slate-700 border border-slate-200 bg-slate-100">
                       {emp.work_mode}
                     </span>
                   </td>
@@ -218,7 +226,7 @@ export const EmployeesPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    {getRiskBadge(emp.latest_risk_level)}
+                    <RiskBadge level={emp.latest_risk_level as RiskLevel | undefined} score={emp.latest_risk_score} />
                   </td>
                   <td className="px-6 py-4 text-right">
                     <Link
@@ -233,6 +241,35 @@ export const EmployeesPage: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/50 px-6 py-3 text-xs text-slate-500">
+          <span>
+            {total === 0
+              ? "No results"
+              : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total} employees`}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1 || loading}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+            </button>
+            <span className="font-semibold text-slate-700">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages || loading}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Create Employee Modal */}
@@ -241,7 +278,7 @@ export const EmployeesPage: React.FC = () => {
           <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl overflow-y-auto max-h-[90vh]">
             <h3 className="text-base font-bold text-slate-900 mb-4">Add New Employee Profile</h3>
             <form onSubmit={handleCreateEmployee} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Employee Code</label>
                   <input
@@ -266,7 +303,7 @@ export const EmployeesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">First Name</label>
                   <input
@@ -291,12 +328,12 @@ export const EmployeesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Department</label>
                   <select
                     value={newEmp.department_id}
-                    onChange={(e) => setNewEmp({ ...newEmp, department_id: e.target.value })}
+                    onChange={(e) => handleDeptChange(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   >
                     {departments.map((d) => (
@@ -313,7 +350,7 @@ export const EmployeesPage: React.FC = () => {
                     onChange={(e) => setNewEmp({ ...newEmp, job_role_id: e.target.value })}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   >
-                    {roles.map((r) => (
+                    {rolesForDept.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.title}
                       </option>
@@ -322,12 +359,12 @@ export const EmployeesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Work Mode</label>
                   <select
                     value={newEmp.work_mode}
-                    onChange={(e) => setNewEmp({ ...newEmp, work_mode: e.target.value as any })}
+                    onChange={(e) => setNewEmp({ ...newEmp, work_mode: e.target.value })}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none shadow-sm"
                   >
                     <option value="OFFICE">Office</option>
@@ -357,7 +394,7 @@ export const EmployeesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Overtime Frequency</label>
                   <select

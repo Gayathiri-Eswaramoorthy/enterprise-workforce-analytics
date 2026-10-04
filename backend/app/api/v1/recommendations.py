@@ -16,7 +16,7 @@ from app.schemas.recommendation import (
     RecommendationResponse,
     RecommendationStatusUpdate,
 )
-from app.security import get_current_active_user, require_roles
+from app.security import require_hr, require_roles
 from app.services.audit_service import AuditService
 from app.services.recommendation_service import RecommendationService
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -32,7 +32,7 @@ audit_service = AuditService()
     response_model=dict,
     status_code=status.HTTP_200_OK,
     summary="List Recommendations",
-    description="Query actionable training, retention, and development recommendations.",
+    description="Query actionable training, retention, and development recommendations. Restricted to HR roles.",
 )
 def list_recommendations(
     employee_id: UUID | None = Query(None, description="Filter by employee"),
@@ -46,7 +46,7 @@ def list_recommendations(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_hr),
 ) -> dict:
     items, total = recommendation_service.list_recommendations(
         db=db,
@@ -91,6 +91,34 @@ def generate_recommendations(
         request=request,
     )
     return recs
+
+
+@router.post(
+    "/generate-all",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+    summary="Generate Recommendations for All Employees",
+    description=(
+        "Run the recommendation engine across the active workforce, using current skill gaps "
+        "and each employee's latest risk prediction. Existing recommendations are not duplicated."
+    ),
+)
+def generate_all_recommendations(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr),
+) -> dict:
+    created = recommendation_service.generate_recommendations_for_all(db=db)
+    audit_service.log_action(
+        db=db,
+        entity_name="Recommendation",
+        entity_id=current_user.id,
+        action="GENERATE_ALL_RECOMMENDATIONS",
+        description=f"Generated {created} new recommendations across the workforce",
+        user=current_user,
+        request=request,
+    )
+    return {"created": created}
 
 
 @router.patch(

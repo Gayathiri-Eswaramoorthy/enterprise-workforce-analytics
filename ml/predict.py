@@ -13,22 +13,39 @@ from app.models import (
     Employee,
 )
 
+ARTIFACTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "artifacts")
+MODEL_PATH = os.path.join(ARTIFACTS_DIR, "workforce_risk_model.joblib")
+META_PATH = os.path.join(ARTIFACTS_DIR, "model_metadata.joblib")
+
+# (model mtime, model, metadata) - avoids re-reading the pickle from disk for every
+# prediction, while still picking up a retrained artifact without a server restart.
+_artifact_cache: tuple[float, Any, dict] | None = None
+
+# Identity used when no trained artifact exists and the rule-based fallback runs
+FALLBACK_MODEL_VERSION = "v0-rule-based"
+FALLBACK_ALGORITHM = "Rule-based Risk Heuristic"
+
 
 def load_model_artifact():
     """
-    Load serialized pipeline and metadata from artifacts directory.
-    """
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    artifacts_dir = os.path.join(current_dir, "artifacts")
-    model_path = os.path.join(artifacts_dir, "workforce_risk_model.joblib")
-    meta_path = os.path.join(artifacts_dir, "model_metadata.joblib")
+    Load serialized pipeline and metadata from artifacts directory (cached).
 
-    if not os.path.exists(model_path):
+    Returns:
+        (model, metadata), or (None, None) if no trained artifact exists yet.
+    """
+    global _artifact_cache
+
+    if not os.path.exists(MODEL_PATH):
+        _artifact_cache = None
         return None, None
 
-    model = joblib.load(model_path)
-    metadata = joblib.load(meta_path) if os.path.exists(meta_path) else {}
-    return model, metadata
+    mtime = os.path.getmtime(MODEL_PATH)
+    if _artifact_cache is None or _artifact_cache[0] != mtime:
+        model = joblib.load(MODEL_PATH)
+        metadata = joblib.load(META_PATH) if os.path.exists(META_PATH) else {}
+        _artifact_cache = (mtime, model, metadata)
+
+    return _artifact_cache[1], _artifact_cache[2]
 
 
 def extract_features_from_employee(employee: Employee) -> dict[str, Any]:
@@ -125,8 +142,10 @@ def predict_employee_risk(employee: Employee) -> dict[str, Any]:
         # class 1 probability
         prob_risk = float(probs[1]) if len(probs) > 1 else float(probs[0])
         score = round(prob_risk * 100.0, 1)
+        # Confidence in the predicted class: how far the probability is from a coin flip
+        confidence = round(max(prob_risk, 1.0 - prob_risk), 2)
         version = meta.get("version", "v1.0.0")
-        algorithm = meta.get("algorithm", "Gradient Boosting Classifier")
+        algorithm = meta.get("algorithm", "Unknown Classifier")
     else:
         # Rule-based fallback if model artifact not yet generated on disk
         score = 20.0
@@ -139,8 +158,9 @@ def predict_employee_risk(employee: Employee) -> dict[str, Any]:
         if features["total_skill_gaps"] >= 3:
             score += 15.0
         score = min(95.0, score)
-        version = "v1.0.0-fallback"
-        algorithm = "Statistical Risk Classifier"
+        confidence = 0.5  # heuristic rules carry no calibrated confidence
+        version = FALLBACK_MODEL_VERSION
+        algorithm = FALLBACK_ALGORITHM
 
     # Map to Categorical RiskLevel
     if score >= 75.0:
@@ -246,5 +266,5 @@ def predict_employee_risk(employee: Employee) -> dict[str, Any]:
         "factors": factors,
         "model_version": version,
         "algorithm": algorithm,
-        "confidence": round(0.85 + (score / 1000.0), 2),
+        "confidence": confidence,
     }
