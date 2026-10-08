@@ -87,7 +87,9 @@ class PredictionRepository(BaseRepository[PredictionHistory]):
         )
         by_month: dict = {}
         for m, level, count in db.execute(stmt).all():
-            row = by_month.setdefault(m, {"month": m.strftime("%Y-%m"), "low": 0, "medium": 0, "high": 0, "critical": 0})
+            row = by_month.setdefault(
+                m, {"month": m.strftime("%Y-%m"), "low": 0, "medium": 0, "high": 0, "critical": 0}
+            )
             row[level.value.lower()] = count
         return [by_month[m] for m in sorted(by_month)][-months:]
 
