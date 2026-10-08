@@ -116,6 +116,24 @@ def list_prediction_history(
 
 
 @router.get(
+    "/trend",
+    response_model=list[dict],
+    status_code=status.HTTP_200_OK,
+    summary="Risk Trend",
+    description=(
+        "Employees per attrition risk level for each month, using each employee's last "
+        "prediction of that month. Restricted to HR roles."
+    ),
+)
+def risk_trend(
+    months: int = Query(6, ge=1, le=24, description="Number of most recent months with predictions"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr),
+) -> list[dict]:
+    return prediction_service.risk_trend(db=db, months=months)
+
+
+@router.get(
     "/models",
     response_model=list[ModelRegistryResponse],
     status_code=status.HTTP_200_OK,

@@ -72,6 +72,25 @@ class PredictionRepository(BaseRepository[PredictionHistory]):
         items = db.execute(stmt).scalars().all()
         return items, total
 
+    def monthly_risk_trend(self, db: Session, months: int = 6) -> list[dict]:
+        """Employees per risk level for each month, using each person's last reading that month."""
+        month = func.date_trunc("month", PredictionHistory.generated_at)
+        latest = (
+            select(month.label("month"), PredictionHistory.risk_level.label("risk_level"))
+            .where(PredictionHistory.prediction_type == PredictionType.ATTRITION)
+            .distinct(PredictionHistory.employee_id, month)
+            .order_by(PredictionHistory.employee_id, month, desc(PredictionHistory.generated_at))
+            .subquery()
+        )
+        stmt = select(latest.c.month, latest.c.risk_level, func.count()).group_by(
+            latest.c.month, latest.c.risk_level
+        )
+        by_month: dict = {}
+        for m, level, count in db.execute(stmt).all():
+            row = by_month.setdefault(m, {"month": m.strftime("%Y-%m"), "low": 0, "medium": 0, "high": 0, "critical": 0})
+            row[level.value.lower()] = count
+        return [by_month[m] for m in sorted(by_month)][-months:]
+
     def get_latest_employee_prediction(
         self, db: Session, employee_id: UUID
     ) -> PredictionHistory | None:

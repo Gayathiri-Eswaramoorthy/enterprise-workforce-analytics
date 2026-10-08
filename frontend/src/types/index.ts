@@ -40,6 +40,9 @@ export interface Department {
   name: string;
   description?: string;
   hr_manager_user_id?: string;
+  is_active?: boolean;
+  employee_count?: number | null;
+  job_roles_count?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -71,7 +74,9 @@ export interface Skill {
   skill_code: string;
   name: string;
   skill_category: string;
+  description?: string | null;
   display_order: number;
+  is_active?: boolean;
   created_at: string;
 }
 
@@ -308,7 +313,9 @@ export interface Recommendation {
   recommended_course_id?: string;
   status: RecommendationStatus;
   generated_at: string;
+  resolved_at?: string | null;
   created_at: string;
+  updated_at: string;
   employee_name?: string;
   employee_code?: string;
   department_name?: string;
