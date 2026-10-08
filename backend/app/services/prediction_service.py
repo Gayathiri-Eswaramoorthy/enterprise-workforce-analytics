@@ -277,6 +277,9 @@ class PredictionService:
             responses.append(resp)
         return responses, total
 
+    def risk_trend(self, db: Session, months: int = 6) -> list[dict]:
+        return self.repository.monthly_risk_trend(db, months=months)
+
     def list_models(self, db: Session) -> list[ModelRegistryResponse]:
         self.get_active_model(db)  # make sure the serving model is registered
         models = self.repository.list_models(db)

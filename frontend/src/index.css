@@ -1,3 +1,284 @@
+@import "@fontsource-variable/public-sans/wght.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Design tokens. Read off the public stylesheets of Vercel, Stripe, GitHub Primer and Mercury:
+   a cool near-white ground, white panels, 1px borders, navy-tinted ink, one blue accent.
+   The risk scale is a validated status palette (dataviz validator on white: band, chroma, CVD and
+   normal-vision separation all pass); it never carries meaning without a text label beside it. */
+:root {
+  /* Navy rail */
+  --shell: #0b1f44;
+  --shell-ink: #f1f5ff;
+  --shell-ink-2: #c5d2ea;
+  --shell-muted: #9baed2;
+
+  /* Surfaces */
+  --ground: #f6f8fb;
+  --panel: #ffffff;
+  --sunken: #f1f4f9;
+  --hover: #f5f8fc;
+  --accent-soft: #eef3fe;
+
+  --ink: #0c1a33;
+  --ink-2: #3f4e68;
+  --ink-3: #5b6b84;
+
+  --rule: #e3e8ef;
+  --rule-strong: #cbd5e1;
+  --rule-soft: #edf1f6;
+
+  /* One accent. Cyan appears only in the re-score sweep. */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-ring: #bfd3fb;
+  --link: #1d4ed8;
+  --focus: #2563eb;
+  --signal: #06b6d4;
+
+  --risk-low: #1ec47f;
+  --risk-medium: #eda312;
+  --risk-high: #f25a2a;
+  --risk-critical: #d0216e;
+
+  --shadow-card: 0 1px 2px rgb(12 26 51 / 0.05);
+  --shadow-raised: 0 1px 2px rgb(12 26 51 / 0.06), 0 4px 12px -2px rgb(12 26 51 / 0.07), 0 12px 24px -12px rgb(12 26 51 / 0.1);
+  --shadow-lift: 0 1px 2px rgb(12 26 51 / 0.06), 0 8px 18px -4px rgb(12 26 51 / 0.12), 0 22px 36px -14px rgb(12 26 51 / 0.18);
+  --shadow-pop: 0 8px 24px rgb(12 26 51 / 0.12), 0 1px 2px rgb(12 26 51 / 0.06);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  color-scheme: light;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-ground text-ink antialiased;
+    font-family: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    touch-action: manipulation;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: rgb(37 99 235 / 0.2);
+    color: var(--ink);
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: var(--accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+}
+
+@layer components {
+  /* White surface, 1px border, one hairline shadow */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Layered shadow and a faint top-lit gradient: the surface sits above the page */
+  .card-raised {
+    background: linear-gradient(180deg, var(--panel) 0%, color-mix(in srgb, var(--panel) 55%, var(--hover)) 100%);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    box-shadow: var(--shadow-raised), inset 0 1px 0 rgb(255 255 255 / 0.9);
+  }
+
+  /* Interactive cards rise toward the pointer */
+  .card-lift {
+    transition:
+      transform 220ms var(--ease-out-expo),
+      box-shadow 220ms var(--ease-out-expo),
+      border-color 150ms ease-out;
+  }
+  .card-lift:hover {
+    transform: translateY(-3px);
+    border-color: var(--rule-strong);
+    box-shadow: var(--shadow-lift), inset 0 1px 0 rgb(255 255 255 / 0.9);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card-lift:hover {
+      transform: none;
+    }
+  }
+
+  /* Small pressed-in well used behind icons and mini charts */
+  .well {
+    background: var(--sunken);
+    border: 1px solid var(--rule-soft);
+    border-radius: 10px;
+    box-shadow: inset 0 1px 2px rgb(12 26 51 / 0.06);
+  }
+
+  .field {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--ink);
+    font-size: 13px;
+    box-shadow: inset 0 1px 1px rgb(12 26 51 / 0.04);
+    transition:
+      border-color 150ms ease-out,
+      box-shadow 150ms ease-out;
+  }
+  textarea.field {
+    height: auto;
+    padding: 8px 12px;
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: var(--shadow-card);
+    transition:
+      background-color 150ms ease-out,
+      border-color 150ms ease-out,
+      color 150ms ease-out;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--sunken);
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+  .btn-primary[aria-busy="true"] {
+    cursor: progress;
+    opacity: 1;
+  }
+}
+
+/* First paint: bars grow in from the left */
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.grow {
+  transform-origin: left center;
+  animation: grow 800ms var(--ease-out-expo) both;
+}
+
+/* Re-scoring: a cyan sweep travels along the distribution bar while the model runs */
+@keyframes sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}
+
+.sweeping::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgb(6 182 212 / 0.55), rgb(255 255 255 / 0.85), rgb(6 182 212 / 0.55), transparent);
+  animation: sweep 1.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes skeleton {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.skeleton {
+  background: var(--sunken);
+  border-radius: 6px;
+  animation: skeleton 1.4s ease-in-out infinite;
+}
+
+/* Sorting, filtering and paging reflow the table through a view transition */
+::view-transition-group(*) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-out-expo);
+}
+
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grow,
+  .sweeping::after,
+  .skeleton {
+    animation: none;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}

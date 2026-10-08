@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-04T18:00:00Z",
+  "title": "Design System: Workforce Analytics",
+  "extensions": {
+    "colorMeta": {
+      "navy": { "role": "primary", "displayName": "Navy" },
+      "accent": { "role": "primary", "displayName": "Accent Blue", "canonical": "#2563eb" },
+      "link": { "role": "primary", "displayName": "Link Blue" },
+      "signal": { "role": "secondary", "displayName": "Signal Cyan (re-score sweep only)" },
+      "ground": { "role": "neutral", "displayName": "Ground" },
+      "panel": { "role": "neutral", "displayName": "Panel" },
+      "risk-low": { "role": "status", "displayName": "Low risk (emerald)" },
+      "risk-medium": { "role": "status", "displayName": "Medium risk (amber)" },
+      "risk-high": { "role": "status", "displayName": "High risk (orange-red)" },
+      "risk-critical": { "role": "status", "displayName": "Critical risk (raspberry)" }
+    },
+    "typographyMeta": {
+      "figure": { "displayName": "Figure", "purpose": "Headline count only." },
+      "section-title": { "displayName": "Section title", "purpose": "Card headings and the top-bar title." }
+    },
+    "shadows": [
+      { "name": "card", "value": "0 1px 2px rgb(12 26 51 / 0.05)", "purpose": "Cards, buttons, the segmented-control thumb." },
+      { "name": "pop", "value": "0 8px 24px rgb(12 26 51 / 0.12), 0 1px 2px rgb(12 26 51 / 0.06)", "purpose": "Floating menus only." }
+    ],
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Grow-in, nav highlight, view transitions, drawer." },
+      { "name": "state", "value": "150ms ease-out", "purpose": "Hover and pressed colour changes." },
+      { "name": "grow", "value": "800ms ease-out-expo", "purpose": "Bars grow in from the left on first load; the headline count rises with them." },
+      { "name": "sweep", "value": "1.2s ease-in-out infinite", "purpose": "Cyan sweep along the distribution bar while the model re-scores." },
+      { "name": "reflow", "value": "320ms view transition", "purpose": "Rows move to new places on filter, sort and page." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default control: white, bordered, hairline shadow.",
+      "html": "<button class=\"ds-btn\">Dismiss</button> <button class=\"ds-btn ds-btn-primary\">Re-score everyone</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0c1a33;font:500 13px 'Public Sans Variable',sans-serif;box-shadow:0 1px 2px rgb(12 26 51/.05);transition:background-color .15s ease-out,border-color .15s ease-out}.ds-btn:hover{background:#f1f4f9}.ds-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}.ds-btn-primary{background:#2563eb;border-color:#2563eb;color:#fff}.ds-btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}"
+    },
+    {
+      "name": "Level tile",
+      "kind": "custom",
+      "refersTo": "tile-selected",
+      "description": "Filter tile under the distribution bar; pressed means the level is in the table.",
+      "html": "<button class=\"ds-tile\"><span class=\"ds-dot\"></span>Low<b>35</b></button> <button class=\"ds-tile ds-on\"><span class=\"ds-dot\" style=\"background:#f25a2a\"></span>High<b>5</b></button>",
+      "css": ".ds-tile{display:inline-flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:140px;padding:16px;border:1px solid #e3e8ef;border-radius:8px;background:#fff;color:#3f4e68;font:500 13px 'Public Sans Variable',sans-serif;transition:background-color .15s ease-out,border-color .15s ease-out}.ds-tile:hover{background:#f5f8fc;border-color:#cbd5e1}.ds-tile b{font-size:28px;line-height:1;letter-spacing:-.025em;color:#0c1a33}.ds-dot{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:2px;background:#1ec47f}.ds-on{background:#eef3fe;border-color:#2563eb}"
+    },
+    {
+      "name": "Search field",
+      "kind": "input",
+      "refersTo": "button",
+      "description": "Bordered field; focus adds the accent border and a soft ring.",
+      "html": "<label class=\"ds-search\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input placeholder=\"Search name or role\"></label>",
+      "css": ".ds-search{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#5b6b84}.ds-search:focus-within{border-color:#2563eb;box-shadow:0 0 0 2px #bfd3fb}.ds-search input{border:0;background:transparent;font:400 13px 'Public Sans Variable',sans-serif;color:#0c1a33;outline:none}"
+    },
+    {
+      "name": "Navigation item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Flat navy rail item; the active one carries a white-at-12% highlight.",
+      "html": "<nav class=\"ds-nav\"><a>Attrition risk</a><a class=\"ds-act\">Overview</a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:2px;width:216px;padding:12px;background:#0b1f44}.ds-nav a{display:flex;align-items:center;height:36px;padding:0 12px;border-radius:6px;color:#c5d2ea;font:400 13.5px 'Public Sans Variable',sans-serif;transition:background-color .15s ease-out,color .15s ease-out}.ds-nav a:hover{background:rgb(255 255 255/.06);color:#fff}.ds-nav .ds-act{background:rgb(255 255 255/.12);color:#fff;font-weight:500}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White surface, 1px border, hairline shadow.",
+      "html": "<div class=\"ds-card\">Needs attention</div>",
+      "css": ".ds-card{padding:20px 24px;border:1px solid #e3e8ef;border-radius:10px;background:#fff;box-shadow:0 1px 2px rgb(12 26 51/.05);font:600 15px 'Public Sans Variable',sans-serif;color:#0c1a33}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Plain-Spoken Console",
+    "overview": "A standard, calm enterprise SaaS interface. A flat navy rail frames a cool near-white page; content sits on white cards with 1px borders. One blue accent does every interactive job, and the four-step risk scale is the only other colour. Depth is a border plus one hairline shadow, and motion is state feedback. Values are read off the public stylesheets and design systems of Vercel, Stripe, GitHub Primer, Mercury, Linear and IBM Carbon.",
+    "keyCharacteristics": [
+      "White cards on a #f6f8fb ground; borders, not shadows, make the structure.",
+      "One blue accent; cyan only in the re-score sweep.",
+      "Risk scale beside its label, never alone.",
+      "A real data table: S.No, sortable headers, search, density, pagination.",
+      "Real-product motion: colour transitions, one grow-in, one sweep, view-transition reflow."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Blue is the only interactive colour. Cyan appears only in the re-score sweep.", "section": "colors" },
+      { "name": "The One Signal Rule", "body": "Risk colours appear only where risk is the content.", "section": "colors" },
+      { "name": "The Label Rule", "body": "A risk colour always sits beside its level in words.", "section": "colors" },
+      { "name": "The Aligned Numbers Rule", "body": "tabular-nums only where numbers align vertically.", "section": "typography" },
+      { "name": "The Hairline Rule", "body": "Structure comes from 1px borders; a shadow never exceeds the hairline except on a floating layer.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do separate with borders and spacing; keep every shadow at the hairline.",
+      "Do keep one blue accent and put the risk scale only where risk is the content.",
+      "Do pair every risk colour with its level in words.",
+      "Do filter, sort and page through view transitions, and honour reduced motion."
+    ],
+    "donts": [
+      "Don't reintroduce inset or dual shadows, gradients, gel or LED effects.",
+      "Don't add KPI card rows, donuts or a decorative chart where a sentence or a bar says it.",
+      "Don't use all-caps labels, eyebrows above headings, or side-stripe borders.",
+      "Don't stack filled primary buttons in repeated rows."
+    ]
+  }
+}
