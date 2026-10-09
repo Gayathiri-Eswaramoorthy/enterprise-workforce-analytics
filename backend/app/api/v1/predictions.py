@@ -126,7 +126,9 @@ def list_prediction_history(
     ),
 )
 def risk_trend(
-    months: int = Query(6, ge=1, le=24, description="Number of most recent months with predictions"),
+    months: int = Query(
+        6, ge=1, le=24, description="Number of most recent months with predictions"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_hr),
 ) -> list[dict]:
