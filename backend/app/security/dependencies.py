@@ -127,6 +127,8 @@ HR_ROLES = [UserRole.HR_ADMIN, UserRole.HR_MANAGER]
 
 # Shorthand for endpoints exposing organization-wide HR data
 require_hr = require_roles(HR_ROLES)
+require_admin = require_roles([UserRole.HR_ADMIN])
+require_hr_manager = require_roles([UserRole.HR_MANAGER])
 
 
 def get_linked_employee_id(db: Session, user: User) -> UUID | None:

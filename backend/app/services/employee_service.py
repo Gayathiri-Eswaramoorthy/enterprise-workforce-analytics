@@ -4,7 +4,7 @@ Employee service for CRUD, search, filtering, and relationship aggregation.
 
 from uuid import UUID
 
-from app.database import EmploymentStatus, WorkMode
+from app.database import EmploymentStatus, RecommendationStatus, WorkMode
 from app.models import Employee
 from app.repositories.department_repository import DepartmentRepository
 from app.repositories.employee_repository import EmployeeRepository
@@ -125,6 +125,12 @@ class EmployeeService:
                 latest_pred = max(emp.prediction_history, key=lambda p: p.generated_at)
                 item.latest_risk_level = latest_pred.risk_level.value
                 item.latest_risk_score = float(latest_pred.prediction_score)
+                item.latest_prediction_reason = latest_pred.prediction_reason
+
+            if emp.recommendations:
+                item.open_recommendations_count = sum(
+                    1 for r in emp.recommendations if r.status == RecommendationStatus.PENDING
+                )
 
             list_items.append(item)
 

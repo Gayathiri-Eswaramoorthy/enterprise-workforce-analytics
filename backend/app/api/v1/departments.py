@@ -11,7 +11,7 @@ from app.schemas.department import (
     DepartmentResponse,
     DepartmentUpdate,
 )
-from app.security import get_current_active_user, require_roles
+from app.security import require_hr, require_roles
 from app.services.audit_service import AuditService
 from app.services.department_service import DepartmentService
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -27,12 +27,12 @@ audit_service = AuditService()
     response_model=list[DepartmentResponse],
     status_code=status.HTTP_200_OK,
     summary="List Departments",
-    description="Retrieve all departments along with employee and role headcounts.",
+    description="Retrieve all departments along with employee and role headcounts. Restricted to HR roles.",
 )
 def list_departments(
     active_only: bool = Query(False, description="Filter active departments only"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_hr),
 ) -> list[DepartmentResponse]:
     return department_service.list_departments(db=db, active_only=active_only)
 
@@ -68,12 +68,12 @@ def create_department(
     response_model=DepartmentResponse,
     status_code=status.HTTP_200_OK,
     summary="Get Department",
-    description="Retrieve department details by ID.",
+    description="Retrieve department details by ID. Restricted to HR roles.",
 )
 def get_department(
     department_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_hr),
 ) -> DepartmentResponse:
     dept = department_service.get_department(db=db, department_id=department_id)
     return DepartmentResponse.model_validate(dept)

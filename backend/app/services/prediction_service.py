@@ -57,7 +57,13 @@ def register_model_from_metadata(db: Session, metadata: dict, model_path: str) -
     fields = {
         "model_name": MODEL_NAME,
         "algorithm": metadata["algorithm"],
-        "training_dataset": f"Synthetic Workforce Dataset ({metadata['dataset_size']} samples)",
+        "training_dataset": metadata.get(
+            "dataset_name",
+            metadata.get(
+                "training_dataset",
+                f"IBM HR Analytics ({metadata.get('dataset_size', 1470)} samples)",
+            ),
+        ),
         "accuracy": _pct(metrics["accuracy"]),
         "precision_score": _pct(metrics["precision"]),
         "recall_score": _pct(metrics["recall"]),

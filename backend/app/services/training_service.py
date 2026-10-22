@@ -55,6 +55,7 @@ class TrainingService:
         resp.completed_count = sum(
             1 for e in course.enrollments if e.enrollment_status == EnrollmentStatus.COMPLETED
         )
+        resp.lessons_count = len(course.lessons)
         return resp
 
     def list_courses(
@@ -82,6 +83,7 @@ class TrainingService:
             resp.completed_count = sum(
                 1 for e in c.enrollments if e.enrollment_status == EnrollmentStatus.COMPLETED
             )
+            resp.lessons_count = len(c.lessons)
             responses.append(resp)
         return responses
 

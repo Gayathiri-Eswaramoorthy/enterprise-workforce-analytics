@@ -12,6 +12,11 @@ from app.schemas.employee import (
     EmployeePaginatedResponse,
     EmployeeUpdate,
 )
+from app.schemas.employee_request import (
+    EmployeeRequestCreate,
+    EmployeeRequestResponse,
+    EmployeeRequestUpdate,
+)
 from app.schemas.skill import (
     EmployeeSkillCreate,
     EmployeeSkillResponse,
@@ -21,10 +26,12 @@ from app.security import (
     ensure_employee_access,
     get_current_active_user,
     get_linked_employee_id,
+    require_admin,
     require_hr,
     require_roles,
 )
 from app.services.audit_service import AuditService
+from app.services.employee_request_service import EmployeeRequestService
 from app.services.employee_service import EmployeeService
 from app.services.skill_service import SkillService
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -34,6 +41,7 @@ router = APIRouter()
 employee_service = EmployeeService()
 skill_service = SkillService()
 audit_service = AuditService()
+request_service = EmployeeRequestService()
 
 
 @router.get(
@@ -53,7 +61,7 @@ def list_employees(
     employment_status: EmploymentStatus | None = Query(None, description="Filter by status"),
     work_mode: WorkMode | None = Query(None, description="Filter by work mode"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(20, ge=1, le=250, description="Items per page"),
     sort_by: str = Query("created_at", description="Sort field"),
     sort_desc: bool = Query(True, description="Sort descending"),
     db: Session = Depends(get_db),
@@ -78,13 +86,13 @@ def list_employees(
     response_model=EmployeeDetailResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Employee",
-    description="Register a new employee. Restricted to HR Administrators and HR Managers.",
+    description="Register a new employee. Restricted to HR Administrators.",
 )
 def create_employee(
     request_data: EmployeeCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles([UserRole.HR_ADMIN, UserRole.HR_MANAGER])),
+    current_user: User = Depends(require_admin),
 ) -> EmployeeDetailResponse:
     emp = employee_service.create_employee(db=db, emp_in=request_data)
     audit_service.log_action(
@@ -119,6 +127,104 @@ def get_my_employee_profile(
     return employee_service.get_employee_detail(db=db, employee_id=employee_id)
 
 
+# Employee Discussion & Learning Interest Requests
+@router.post(
+    "/me/discussion-request",
+    response_model=EmployeeRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit Career Discussion or Learning Interest Request",
+    description="Allow an authenticated employee to express a learning interest or request a career discussion with HR.",
+)
+def submit_discussion_request(
+    request_in: EmployeeRequestCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> EmployeeRequestResponse:
+    emp_id = get_linked_employee_id(db, current_user)
+    if not emp_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No employee profile linked to this account",
+        )
+    result = request_service.create_request(db=db, employee_id=emp_id, request_in=request_in)
+    audit_service.log_action(
+        db=db,
+        entity_name="EmployeeRequest",
+        entity_id=result.id,
+        action="SUBMIT_REQUEST",
+        description=f"Submitted {result.request_type} request regarding '{result.topic}'",
+        user=current_user,
+        request=request,
+    )
+    return result
+
+
+@router.get(
+    "/me/discussion-requests",
+    response_model=list[EmployeeRequestResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List My Discussion Requests",
+    description="Retrieve historical discussion requests submitted by the current authenticated employee.",
+)
+def list_my_discussion_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[EmployeeRequestResponse]:
+    emp_id = get_linked_employee_id(db, current_user)
+    if not emp_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No employee profile linked to this account",
+        )
+    return request_service.list_requests(db=db, employee_id=emp_id)
+
+
+@router.get(
+    "/discussion-requests",
+    response_model=list[EmployeeRequestResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List All Employee Discussion Requests",
+    description="Retrieve all employee discussion requests and learning interests. Restricted to HR roles.",
+)
+def list_all_discussion_requests(
+    employee_id: UUID | None = Query(None, description="Filter by employee"),
+    status_filter: str | None = Query(None, alias="status", description="Filter by status (PENDING, REVIEWED, RESOLVED)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr),
+) -> list[EmployeeRequestResponse]:
+    return request_service.list_requests(db=db, employee_id=employee_id, status_filter=status_filter)
+
+
+@router.patch(
+    "/discussion-requests/{request_id}",
+    response_model=EmployeeRequestResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Review Employee Discussion Request",
+    description="Update employee discussion request status and provide follow-up notes. Restricted to HR roles.",
+)
+def review_discussion_request(
+    request_id: UUID,
+    update_in: EmployeeRequestUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr),
+) -> EmployeeRequestResponse:
+    result = request_service.update_request(
+        db=db, request_id=request_id, hr_user=current_user, update_in=update_in
+    )
+    audit_service.log_action(
+        db=db,
+        entity_name="EmployeeRequest",
+        entity_id=request_id,
+        action="REVIEW_REQUEST",
+        description=f"Reviewed employee request {request_id} (Status: {result.status})",
+        user=current_user,
+        request=request,
+    )
+    return result
+
+
 @router.get(
     "/{employee_id}",
     response_model=EmployeeDetailResponse,
@@ -143,14 +249,14 @@ def get_employee(
     response_model=EmployeeDetailResponse,
     status_code=status.HTTP_200_OK,
     summary="Update Employee",
-    description="Update employee record. Restricted to HR roles.",
+    description="Update employee record. Restricted to HR Administrators.",
 )
 def update_employee(
     employee_id: UUID,
     request_data: EmployeeUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles([UserRole.HR_ADMIN, UserRole.HR_MANAGER])),
+    current_user: User = Depends(require_admin),
 ) -> EmployeeDetailResponse:
     emp = employee_service.update_employee(db=db, employee_id=employee_id, emp_in=request_data)
     audit_service.log_action(
@@ -202,6 +308,7 @@ def get_employee_skills(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> list[EmployeeSkillResponse]:
+    ensure_employee_access(db, current_user, employee_id)
     return skill_service.list_employee_skills(db=db, employee_id=employee_id)
 
 
@@ -210,14 +317,14 @@ def get_employee_skills(
     response_model=EmployeeSkillResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Assign Skill to Employee",
-    description="Assign a skill proficiency record to an employee.",
+    description="Assign a skill proficiency record to an employee. Restricted to HR Administrators.",
 )
 def assign_employee_skill(
     employee_id: UUID,
     request_data: EmployeeSkillCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles([UserRole.HR_ADMIN, UserRole.HR_MANAGER])),
+    current_user: User = Depends(require_admin),
 ) -> EmployeeSkillResponse:
     emp_skill = skill_service.assign_employee_skill(
         db=db, employee_id=employee_id, skill_in=request_data
@@ -239,7 +346,7 @@ def assign_employee_skill(
     response_model=EmployeeSkillResponse,
     status_code=status.HTTP_200_OK,
     summary="Update Employee Skill",
-    description="Update an employee's proficiency level or certification for a skill.",
+    description="Update an employee's proficiency level or certification for a skill. Restricted to HR Administrators.",
 )
 def update_employee_skill(
     employee_id: UUID,
@@ -247,7 +354,7 @@ def update_employee_skill(
     request_data: EmployeeSkillUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles([UserRole.HR_ADMIN, UserRole.HR_MANAGER])),
+    current_user: User = Depends(require_admin),
 ) -> EmployeeSkillResponse:
     emp_skill = skill_service.update_employee_skill(
         db=db, employee_id=employee_id, skill_id=skill_id, skill_in=request_data
@@ -268,14 +375,14 @@ def update_employee_skill(
     "/{employee_id}/skills/{skill_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove Employee Skill",
-    description="Remove an assigned skill from an employee.",
+    description="Remove an assigned skill from an employee. Restricted to HR Administrators.",
 )
 def remove_employee_skill(
     employee_id: UUID,
     skill_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles([UserRole.HR_ADMIN, UserRole.HR_MANAGER])),
+    current_user: User = Depends(require_admin),
 ):
     skill_service.remove_employee_skill(db=db, employee_id=employee_id, skill_id=skill_id)
     audit_service.log_action(

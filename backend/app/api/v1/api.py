@@ -10,10 +10,12 @@ from app.api.v1.departments import router as departments_router
 from app.api.v1.employees import router as employees_router
 from app.api.v1.health import router as health_router
 from app.api.v1.job_roles import router as job_roles_router
+from app.api.v1.learning import router as learning_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.performance import router as performance_router
 from app.api.v1.predictions import router as predictions_router
 from app.api.v1.recommendations import router as recommendations_router
+from app.api.v1.retention import router as retention_router
 from app.api.v1.skills import router as skills_router
 from app.api.v1.training import router as training_router
 from app.api.v1.users import router as users_router
@@ -31,6 +33,8 @@ api_router.include_router(job_roles_router, prefix="/job-roles", tags=["Job Role
 api_router.include_router(skills_router, prefix="/skills", tags=["Skills"])
 api_router.include_router(performance_router, prefix="/performance", tags=["Performance"])
 api_router.include_router(training_router, prefix="/training", tags=["Training"])
+api_router.include_router(learning_router, prefix="/learning", tags=["Learning & Quizzes"])
+api_router.include_router(retention_router, prefix="/retention", tags=["Retention Interventions"])
 api_router.include_router(analytics_router, prefix="/analytics", tags=["Analytics & Skill Gaps"])
 api_router.include_router(predictions_router, prefix="/predictions", tags=["ML Predictions"])
 api_router.include_router(

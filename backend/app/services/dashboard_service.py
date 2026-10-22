@@ -4,17 +4,32 @@ DashboardService: Aggregates real PostgreSQL organizational data for executive H
 
 from collections import Counter
 
-from app.database import EmploymentStatus, EnrollmentStatus, RecommendationStatus, RiskLevel
+from app.database import (
+    EmploymentStatus,
+    EnrollmentStatus,
+    RecommendationStatus,
+    RiskLevel,
+    UserRole,
+)
 from app.models import (
+    AuditLog,
     Department,
     Employee,
+    JobRole,
+    ModelRegistry,
     PerformanceReview,
     PredictionHistory,
     Recommendation,
     TrainingCourse,
     TrainingEnrollment,
+    User,
 )
-from app.schemas.analytics import DashboardMetrics
+from app.schemas.analytics import (
+    AuditActionCount,
+    DashboardMetrics,
+    RecentAuditActivity,
+    SystemOverviewMetrics,
+)
 from app.services.skill_gap_service import SkillGapService
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -23,6 +38,7 @@ from sqlalchemy.orm import Session, selectinload
 class DashboardService:
     def __init__(self):
         self.skill_gap_service = SkillGapService()
+
 
     def get_dashboard_metrics(self, db: Session) -> DashboardMetrics:
         # Total and active employees
@@ -252,3 +268,99 @@ class DashboardService:
             recent_high_risk_alerts=recent_high_risk_alerts,
             top_recommendations=top_recommendations,
         )
+
+    def get_admin_overview(self, db: Session) -> SystemOverviewMetrics:
+        # Total and active users
+        total_users = db.execute(select(func.count(User.id))).scalar() or 0
+        active_users = (
+            db.execute(select(func.count(User.id)).where(User.is_active == True)).scalar()  # noqa: E712
+            or 0
+        )
+        inactive_users = total_users - active_users
+
+        # Users by role breakdown
+        role_counts = db.execute(
+            select(User.role, func.count(User.id)).group_by(User.role)
+        ).all()
+        users_by_role: dict[str, int] = {
+            r.value if hasattr(r, "value") else str(r): count for r, count in role_counts
+        }
+        for role in [UserRole.HR_ADMIN.value, UserRole.HR_MANAGER.value, UserRole.EMPLOYEE.value]:
+            if role not in users_by_role:
+                users_by_role[role] = 0
+
+        # Employees count
+        total_employees = db.execute(select(func.count(Employee.id))).scalar() or 0
+        active_employees = (
+            db.execute(
+                select(func.count(Employee.id)).where(
+                    Employee.employment_status == EmploymentStatus.ACTIVE,
+                    Employee.is_deleted == False,  # noqa: E712
+                )
+            ).scalar()
+            or 0
+        )
+
+        # Organization entities
+        total_departments = db.execute(select(func.count(Department.id))).scalar() or 0
+        total_job_roles = db.execute(select(func.count(JobRole.id))).scalar() or 0
+
+        # Audit logs count
+        total_audit_logs = db.execute(select(func.count(AuditLog.id))).scalar() or 0
+
+        # Recent 10 audit logs with user info
+        recent_logs_stmt = (
+            select(AuditLog)
+            .order_by(AuditLog.created_at_audit.desc())
+            .limit(10)
+            .options(selectinload(AuditLog.user))
+        )
+        recent_log_rows = db.execute(recent_logs_stmt).scalars().all()
+        recent_audit_logs = [
+            RecentAuditActivity(
+                id=log.id,
+                user_email=log.user.email if log.user else "System",
+                action=log.action,
+                entity_name=log.entity_name,
+                description=log.description,
+                ip_address=log.ip_address,
+                created_at=log.created_at_audit.isoformat() if log.created_at_audit else "",
+            )
+            for log in recent_log_rows
+        ]
+
+        # Audit actions breakdown
+        action_rows = db.execute(
+            select(AuditLog.action, func.count(AuditLog.id))
+            .group_by(AuditLog.action)
+            .order_by(func.count(AuditLog.id).desc())
+            .limit(6)
+        ).all()
+        audit_action_counts = [
+            AuditActionCount(action=row[0], count=row[1]) for row in action_rows
+        ]
+
+        # Active ML model
+        active_model = db.execute(
+            select(ModelRegistry)
+            .where(ModelRegistry.is_active == True)  # noqa: E712
+            .order_by(ModelRegistry.created_at.desc())
+        ).scalars().first()
+        active_model_version = active_model.model_version if active_model else "v2.0.0-ibm"
+
+        return SystemOverviewMetrics(
+            total_users=total_users,
+            active_users=active_users,
+            inactive_users=inactive_users,
+            users_by_role=users_by_role,
+            total_employees=total_employees,
+            active_employees=active_employees,
+            total_departments=total_departments,
+            total_job_roles=total_job_roles,
+            total_audit_logs=total_audit_logs,
+            recent_audit_logs=recent_audit_logs,
+            audit_action_counts=audit_action_counts,
+            active_model_version=active_model_version,
+            system_status="HEALTHY",
+        )
+
