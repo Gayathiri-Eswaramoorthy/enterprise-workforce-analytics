@@ -114,6 +114,8 @@ export interface EmployeeListItem {
   manager_name?: string;
   latest_risk_level?: RiskLevel;
   latest_risk_score?: number;
+  latest_prediction_reason?: string | null;
+  open_recommendations_count?: number;
   is_deleted: boolean;
 }
 
@@ -199,6 +201,7 @@ export interface TrainingCourse {
   created_at: string;
   enrolled_count?: number | null;
   completed_count?: number | null;
+  lessons_count?: number | null;
   training_skills?: Array<{
     id: string;
     skill_id: string;
@@ -385,4 +388,235 @@ export interface DashboardMetrics {
     avg_proficiency_gap: number;
     mandatory_gaps_count: number;
   }>;
+}
+
+export type AssessmentType = "BASELINE" | "POST_TRAINING";
+export type InterventionStatus = "OFFERED" | "ACCEPTED" | "DECLINED" | "COMPLETED";
+export type RetentionOutcome = "EMPLOYED" | "DEPARTED" | "PENDING";
+
+export type ResourceType = "VIDEO" | "COURSE" | "ARTICLE" | "DOCUMENTATION";
+export type AccessType = "FREE" | "PAID" | "ACCOUNT_REQUIRED";
+
+export interface CourseLesson {
+  id: string;
+  course_id: string;
+  title: string;
+  content: string;
+  description?: string | null;
+  provider: string;
+  skill_covered?: string | null;
+  resource_type: ResourceType;
+  access_type: AccessType;
+  order_index: number;
+  is_required: boolean;
+  estimated_minutes: number;
+  external_url?: string | null;
+  is_active: boolean;
+  resource_opened: boolean;
+  opened_at?: string | null;
+  is_completed: boolean;
+  completed_at?: string | null;
+}
+
+export interface QuizOption {
+  id: string;
+  option_text: string;
+  order_index: number;
+}
+
+export interface QuizQuestion {
+  id: string;
+  question_text: string;
+  order_index: number;
+  options: QuizOption[];
+}
+
+export interface CourseQuiz {
+  id?: string | null;
+  course_id: string;
+  title: string;
+  description?: string | null;
+  passing_score: number;
+  max_attempts: number;
+  questions_count: number;
+  user_attempts_count: number;
+  user_best_score?: number | null;
+  user_has_passed: boolean;
+  can_attempt: boolean;
+  quiz_available: boolean;
+  message?: string | null;
+  questions: QuizQuestion[];
+}
+
+export interface QuizQuestionResult {
+  question_id: string;
+  question_text: string;
+  selected_option_id: string;
+  correct_option_id: string;
+  is_correct: boolean;
+  explanation?: string | null;
+}
+
+export interface QuizAttempt {
+  id: string;
+  quiz_id: string;
+  enrollment_id: string;
+  employee_id: string;
+  attempt_number: number;
+  score: number;
+  passed: boolean;
+  attempted_at: string;
+  breakdown?: QuizQuestionResult[];
+  course_completed: boolean;
+}
+
+export interface MyCourseProgress {
+  enrollment_id: string;
+  course_id: string;
+  course_code: string;
+  title: string;
+  description?: string | null;
+  provider: string;
+  duration_hours: number;
+  difficulty_level: DifficultyLevel;
+  training_mode: TrainingMode;
+  enrollment_date: string;
+  completion_date?: string | null;
+  enrollment_status: EnrollmentStatus;
+  total_lessons: number;
+  completed_lessons: number;
+  progress_percentage: number;
+  quiz_available: boolean;
+  quiz_passed: boolean;
+  quiz_score?: number | null;
+  can_complete: boolean;
+  target_skills: string[];
+}
+
+export interface SkillAssessmentResponse {
+  id: string;
+  employee_id: string;
+  employee_name?: string | null;
+  skill_id: string;
+  skill_name?: string | null;
+  skill_category?: string | null;
+  training_course_id?: string | null;
+  course_title?: string | null;
+  assessment_type: AssessmentType;
+  score: number;
+  assessed_proficiency?: number | null;
+  assessment_date: string;
+  evaluator_name?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface SkillAssessmentComparison {
+  employee_id?: string;
+  employee_name?: string;
+  employee_code?: string;
+  department_name?: string;
+  skill_id: string;
+  skill_name: string;
+  skill_category: string;
+  course_id?: string | null;
+  course_title?: string | null;
+  baseline_score?: number | null;
+  baseline_date?: string | null;
+  post_score?: number | null;
+  post_date?: string | null;
+  score_delta?: number | null;
+  score_change?: number | null;
+  current_proficiency?: number | null;
+  reassessed_proficiency?: number | null;
+  required_proficiency?: number | null;
+  role_required_proficiency?: number | null;
+  remaining_skill_gap?: number | null;
+  is_improved: boolean;
+}
+
+export interface RetentionIntervention {
+  id: string;
+  recommendation_id?: string | null;
+  employee_id: string;
+  employee_name?: string;
+  employee_code?: string;
+  department_name?: string;
+  job_title?: string;
+  hr_user_id: string;
+  hr_user_name?: string;
+  concern_summary: string;
+  intervention_type: string;
+  status: InterventionStatus;
+  offered_date: string;
+  completed_date?: string | null;
+  follow_up_date?: string | null;
+  notes?: string | null;
+  retention_outcome: RetentionOutcome;
+  outcome_recorded_date?: string | null;
+  outcome_notes?: string | null;
+  intervention_effectiveness?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmployeeRequest {
+  id: string;
+  employee_id: string;
+  employee_name?: string;
+  employee_code?: string;
+  department_name?: string;
+  job_title?: string;
+  request_type: string;
+  topic: string;
+  notes?: string | null;
+  status: string;
+  reviewed_by_id?: string | null;
+  reviewed_by_name?: string | null;
+  reviewed_at?: string | null;
+  response_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HRLearningCourseSummary {
+  course_id: string;
+  course_code: string;
+  title: string;
+  enrolled_count: number;
+  not_started_count: number;
+  in_progress_count: number;
+  completed_count: number;
+  overdue_count: number;
+  avg_progress_percentage: number;
+  quiz_pass_rate: number;
+  target_skills: string[];
+}
+
+export interface HRLearningEnrollmentDetail {
+  enrollment_id: string;
+  employee_id: string;
+  employee_name: string;
+  employee_code: string;
+  department_name: string;
+  course_id: string;
+  course_title: string;
+  enrollment_date: string;
+  completion_date?: string | null;
+  enrollment_status: EnrollmentStatus;
+  completed_lessons: number;
+  total_lessons: number;
+  progress_percentage: number;
+  latest_quiz_score?: number | null;
+  quiz_passed: boolean;
+  needs_support: boolean;
+  support_reason?: string | null;
+}
+
+export interface HRLearningDashboardData {
+  total_courses: number;
+  total_enrollments: number;
+  needs_support_count: number;
+  course_summaries: HRLearningCourseSummary[];
+  enrollments: HRLearningEnrollmentDetail[];
 }

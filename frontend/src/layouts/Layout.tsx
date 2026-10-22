@@ -5,17 +5,20 @@ import api from "../services/api";
 import type { UserRole } from "../types";
 import { BrandMark } from "../components/BrandMark";
 import {
-  LayoutDashboard,
-  Users,
-  Building2,
-  Layers,
   Activity,
-  ListChecks,
-  GraduationCap,
-  ScrollText,
   Bell,
+  BookOpen,
+  Building2,
+  GraduationCap,
+  Layers,
+  LayoutDashboard,
+  ListChecks,
   LogOut,
   Menu,
+  MessageSquare,
+  ScrollText,
+  ShieldCheck,
+  Users,
   X,
 } from "lucide-react";
 
@@ -23,7 +26,6 @@ interface NavItem {
   to: string;
   label: string;
   icon: React.ElementType;
-  roles: UserRole[];
 }
 
 interface NavGroup {
@@ -31,45 +33,69 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const ALL_ROLES: UserRole[] = ["HR_ADMIN", "HR_MANAGER", "EMPLOYEE"];
-const HR_ROLES: UserRole[] = ["HR_ADMIN", "HR_MANAGER"];
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Retention",
-    items: [
-      { to: "/", label: "Overview", icon: LayoutDashboard, roles: HR_ROLES },
-      { to: "/", label: "My dashboard", icon: LayoutDashboard, roles: ["EMPLOYEE"] },
-      { to: "/predictions", label: "Attrition risk", icon: Activity, roles: HR_ROLES },
-      { to: "/recommendations", label: "Actions", icon: ListChecks, roles: HR_ROLES },
-    ],
-  },
-  {
-    label: "Talent",
-    items: [
-      { to: "/employees", label: "People", icon: Users, roles: HR_ROLES },
-      { to: "/departments", label: "Departments", icon: Building2, roles: ALL_ROLES },
-      { to: "/skills", label: "Skills", icon: Layers, roles: ALL_ROLES },
-      { to: "/training", label: "Training", icon: GraduationCap, roles: ALL_ROLES },
-    ],
-  },
-  {
-    label: "Admin",
-    items: [{ to: "/audit-logs", label: "Audit log", icon: ScrollText, roles: ["HR_ADMIN"] }],
-  },
-];
+const ROLE_NAV_GROUPS: Record<UserRole, NavGroup[]> = {
+  HR_ADMIN: [
+    {
+      label: "System Administration",
+      items: [
+        { to: "/", label: "System Overview", icon: LayoutDashboard },
+        { to: "/employees", label: "People / Employee Records", icon: Users },
+        { to: "/departments", label: "Departments", icon: Building2 },
+        { to: "/users", label: "Users & Roles", icon: ShieldCheck },
+        { to: "/audit-logs", label: "Audit Log", icon: ScrollText },
+      ],
+    },
+  ],
+  HR_MANAGER: [
+    {
+      label: "Workforce & Retention",
+      items: [
+        { to: "/", label: "Workforce Overview", icon: LayoutDashboard },
+        { to: "/predictions", label: "Attrition Risk", icon: Activity },
+        { to: "/recommendations", label: "Retention Actions & Follow-up", icon: ListChecks },
+      ],
+    },
+    {
+      label: "People & Talent",
+      items: [
+        { to: "/employees", label: "People", icon: Users },
+        { to: "/departments", label: "Departments", icon: Building2 },
+        { to: "/skills", label: "Skills & Skill Gaps", icon: Layers },
+        { to: "/training", label: "Training & Learning Analytics", icon: GraduationCap },
+      ],
+    },
+  ],
+  EMPLOYEE: [
+    {
+      label: "Employee Self-Service",
+      items: [
+        { to: "/", label: "My Dashboard", icon: LayoutDashboard },
+        { to: "/my-learning", label: "My Learning", icon: BookOpen },
+        { to: "/my-skills", label: "My Skills", icon: Layers },
+        { to: "/my-progress", label: "My Training Progress", icon: GraduationCap },
+        { to: "/my-requests", label: "Career Discussion Requests", icon: MessageSquare },
+        { to: "/notifications", label: "My Notifications", icon: Bell },
+      ],
+    },
+  ],
+};
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  HR_ADMIN: "HR admin",
-  HR_MANAGER: "HR manager",
+  HR_ADMIN: "HR Admin",
+  HR_MANAGER: "HR Manager",
   EMPLOYEE: "Employee",
 };
 
-const getPageTitle = (pathname: string, items: NavItem[]): string => {
+const getPageTitle = (pathname: string, items: NavItem[], role?: UserRole): string => {
   const navMatch = items.find((item) => item.to === pathname);
   if (navMatch) return navMatch.label;
+  if (pathname === "/") {
+    if (role === "HR_ADMIN") return "System Overview";
+    if (role === "HR_MANAGER") return "Workforce Overview";
+    return "My Dashboard";
+  }
   if (pathname === "/notifications") return "Notifications";
-  if (pathname.startsWith("/employees/")) return "Employee profile";
+  if (pathname.startsWith("/employees/")) return "Employee Profile";
   return "Workforce Analytics";
 };
 
@@ -99,7 +125,16 @@ export const Layout: React.FC = () => {
     };
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+
+    const handleNotificationsUpdated = () => {
+      fetchUnreadCount();
+    };
+    window.addEventListener("notifications-updated", handleNotificationsUpdated);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("notifications-updated", handleNotificationsUpdated);
+    };
     // Re-check after navigating (e.g. leaving the Notifications page after reading them)
   }, [location.pathname]);
 
@@ -108,10 +143,7 @@ export const Layout: React.FC = () => {
     setSidebarOpen(false);
   }, [location.pathname]);
 
-  const groups = NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => user && item.roles.includes(user.role)),
-  })).filter((group) => group.items.length > 0);
+  const groups = user ? ROLE_NAV_GROUPS[user.role] || [] : [];
   const navItems = groups.flatMap((group) => group.items);
   const activeItem = navItems.find((item) => isItemActive(item, location.pathname));
   const activeKey = activeItem ? `${activeItem.to}-${activeItem.label}` : null;
@@ -273,7 +305,7 @@ export const Layout: React.FC = () => {
               <Menu className="h-5 w-5" />
             </button>
             <p className="truncate text-[15px] font-semibold text-ink">
-              {getPageTitle(location.pathname, navItems)}
+              {getPageTitle(location.pathname, navItems, user?.role)}
             </p>
           </div>
           <Link

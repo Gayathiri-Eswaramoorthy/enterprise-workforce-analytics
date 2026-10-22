@@ -5,13 +5,17 @@ import type {
   DifficultyLevel,
   EmployeeListItem,
   EnrollmentStatus,
+  HRLearningDashboardData,
   Skill,
+  SkillAssessmentResponse,
   SkillGapItem,
   TrainingCourse,
   TrainingEnrollment,
   TrainingMode,
 } from "../types";
 import {
+  AlertTriangle,
+  Award,
   BookOpen,
   CheckCircle2,
   Clock,
@@ -20,6 +24,7 @@ import {
   Play,
   Plus,
   Search,
+  Sparkles,
   Target,
   TrendingUp,
   UserPlus,
@@ -127,6 +132,21 @@ export const TrainingPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
+  // HR Learning & Development Dashboard
+  const [activeTab, setActiveTab] = useState<"catalog" | "analytics">("catalog");
+  const [hrData, setHrData] = useState<HRLearningDashboardData | null>(null);
+  const [assessments, setAssessments] = useState<SkillAssessmentResponse[]>([]);
+  const [assessmentModalOpen, setAssessmentModalOpen] = useState(false);
+  const [assessmentForm, setAssessmentForm] = useState({
+    employee_id: "",
+    skill_id: "",
+    training_course_id: "",
+    assessment_type: "POST_TRAINING" as "BASELINE" | "POST_TRAINING",
+    score: 80,
+    assessed_proficiency: 4,
+    notes: "",
+  });
+
   const flash = useCallback((tone: "ok" | "error", text: string) => {
     setNotice({ tone, text });
     window.setTimeout(() => setNotice(null), 4500);
@@ -160,11 +180,15 @@ export const TrainingPage: React.FC = () => {
   const fetchSupport = useCallback(async () => {
     try {
       if (isHr) {
-        const [sRes, gRes] = await Promise.all([
+        const [sRes, gRes, hrDashRes, assessRes] = await Promise.all([
           api.get("/skills", { params: { active_only: true } }),
           api.get("/analytics/skill-gaps/top", { params: { limit: 6 } }),
+          api.get("/learning/hr-dashboard"),
+          api.get("/analytics/assessments"),
         ]);
         setSkills(sRes.data);
+        setHrData(hrDashRes.data);
+        setAssessments(assessRes.data);
         setGaps(
           gRes.data.map((g: { skill_id: string; skill_name: string; affected_employees_count: number }) => ({
             skill_id: g.skill_id,
@@ -221,6 +245,57 @@ export const TrainingPage: React.FC = () => {
       courses.filter((c) => c.is_active && c.training_skills?.some((ts) => ts.skill_id === skillId)).length,
     [courses],
   );
+
+  const pairedAssessments = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        employee_id: string;
+        employee_name: string;
+        skill_id: string;
+        skill_name: string;
+        course_title?: string;
+        baseline?: SkillAssessmentResponse;
+        post?: SkillAssessmentResponse;
+      }
+    >();
+
+    for (const a of assessments) {
+      const key = `${a.employee_id}-${a.skill_id}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          employee_id: a.employee_id,
+          employee_name: a.employee_name || "Employee",
+          skill_id: a.skill_id,
+          skill_name: a.skill_name || "Skill",
+          course_title: a.course_title || undefined,
+        });
+      }
+      const item = map.get(key)!;
+      if (a.assessment_type === "BASELINE") {
+        item.baseline = a;
+      } else if (a.assessment_type === "POST_TRAINING") {
+        item.post = a;
+        if (a.course_title) item.course_title = a.course_title;
+      }
+    }
+
+    return Array.from(map.values()).map((p) => {
+      const baselineScore = p.baseline ? Number(p.baseline.score) : null;
+      const postScore = p.post ? Number(p.post.score) : null;
+      const delta = postScore != null && baselineScore != null ? postScore - baselineScore : null;
+      const proficiency = p.post?.assessed_proficiency ?? p.baseline?.assessed_proficiency ?? null;
+      return {
+        ...p,
+        baselineScore,
+        baselineDate: p.baseline?.assessment_date,
+        postScore,
+        postDate: p.post?.assessment_date,
+        delta,
+        proficiency,
+      };
+    });
+  }, [assessments]);
 
   const stats = useMemo(() => {
     const live = enrollments.filter((e) => e.enrollment_status !== "DROPPED");
@@ -414,6 +489,44 @@ export const TrainingPage: React.FC = () => {
     }
   };
 
+  const openAssessmentDialog = () => {
+    setAssessmentForm({
+      employee_id: employees.length > 0 ? employees[0].id : "",
+      skill_id: skills.length > 0 ? skills[0].id : "",
+      training_course_id: courses.length > 0 ? courses[0].id : "",
+      assessment_type: "POST_TRAINING",
+      score: 80,
+      assessed_proficiency: 4,
+      notes: "",
+    });
+    setDialogError(null);
+    setAssessmentModalOpen(true);
+  };
+
+  const saveAssessment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setDialogError(null);
+    try {
+      await api.post("/analytics/assessments", {
+        employee_id: assessmentForm.employee_id,
+        skill_id: assessmentForm.skill_id,
+        training_course_id: assessmentForm.training_course_id || null,
+        assessment_type: assessmentForm.assessment_type,
+        score: Number(assessmentForm.score),
+        assessed_proficiency: Number(assessmentForm.assessed_proficiency),
+        notes: assessmentForm.notes.trim() || null,
+      });
+      setAssessmentModalOpen(false);
+      await fetchSupport();
+      flash("ok", "Skill assessment recorded and proficiency level updated.");
+    } catch (err) {
+      setDialogError(getErrorMessage(err, "Failed to record skill assessment"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const resetCatalogPage = () => setCatalogPage(1);
   const activeSkillName =
     gaps.find((g) => g.skill_id === skillFilter)?.skill_name ?? skills.find((s) => s.id === skillFilter)?.name;
@@ -450,16 +563,46 @@ export const TrainingPage: React.FC = () => {
           <h1 className="text-[28px] font-semibold leading-tight text-ink">Training</h1>
           <p className="text-[13.5px] text-ink-2">
             {isHr
-              ? "Courses, enrollments and the skills they close."
+              ? "Corporate learning catalog, employee progress, and skill reassessment metrics."
               : "Browse courses, enroll, and track your own learning."}
           </p>
         </div>
         {isHr && (
-          <button onClick={() => openCourseDialog("new")} className="btn btn-primary">
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add Course
-          </button>
+          <div className="flex gap-2">
+            <button onClick={openAssessmentDialog} className="btn h-9 text-xs">
+              <Award className="h-4 w-4 mr-1 text-link" aria-hidden="true" /> Record Assessment
+            </button>
+            <button onClick={() => openCourseDialog("new")} className="btn btn-primary h-9 text-xs">
+              <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Add Course
+            </button>
+          </div>
         )}
       </div>
+
+      {isHr && (
+        <div className="flex border-b border-rule-soft gap-2">
+          <button
+            onClick={() => setActiveTab("catalog")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "catalog"
+                ? "border-accent text-link font-semibold"
+                : "border-transparent text-ink-2 hover:text-ink"
+            }`}
+          >
+            <BookOpen className="inline-block mr-1.5 h-4 w-4" /> Course Catalog & Enrollments
+          </button>
+          <button
+            onClick={() => setActiveTab("analytics")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "analytics"
+                ? "border-accent text-link font-semibold"
+                : "border-transparent text-ink-2 hover:text-ink"
+            }`}
+          >
+            <Sparkles className="inline-block mr-1.5 h-4 w-4" /> HR Learning Analytics & Assessments
+          </button>
+        </div>
+      )}
 
       {notice && (
         <div
@@ -474,8 +617,10 @@ export const TrainingPage: React.FC = () => {
         </div>
       )}
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {(!isHr || activeTab === "catalog") && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={BookOpen} label="Active courses" value={stats.activeCourses} />
         <Kpi
           icon={Play}
@@ -989,6 +1134,383 @@ export const TrainingPage: React.FC = () => {
           />
         </div>
       </section>
+        </>
+      )}
+
+      {/* HR Learning Analytics & Skill Assessments Tab */}
+      {isHr && activeTab === "analytics" && (
+        <div className="space-y-6">
+          {/* Analytics KPIs */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Kpi
+              icon={BookOpen}
+              label="Catalog Courses"
+              value={hrData?.total_courses ?? courses.length}
+              note="Active corporate learning"
+            />
+            <Kpi
+              icon={Play}
+              tone="var(--risk-medium)"
+              label="Total Enrollments"
+              value={hrData?.total_enrollments ?? enrollments.length}
+              note="Across all departments"
+            />
+            <Kpi
+              icon={AlertTriangle}
+              tone="var(--risk-critical)"
+              label="Learners Needing Support"
+              value={hrData?.needs_support_count ?? 0}
+              note="Stalled or repeated quiz struggle"
+            />
+            <Kpi
+              icon={Award}
+              tone="var(--risk-low)"
+              label="Skill Assessments Logged"
+              value={assessments.length}
+              note="Baseline & post-training tests"
+            />
+          </div>
+
+          {/* Course Performance Breakdown */}
+          <section className="card-raised p-5" aria-label="Course Learning & Quiz Performance">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-[15px] font-semibold text-ink">Course Learning & Quiz Performance</h2>
+                <p className="text-xs text-ink-3">
+                  Lesson completion rates, enrollment lifecycle status, and quiz pass rates by training program.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] table-fixed text-left text-[13px] text-ink">
+                <colgroup>
+                  <col style={{ width: "28%" }} />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 180 }} />
+                  <col style={{ width: 140 }} />
+                  <col style={{ width: 110 }} />
+                  <col />
+                </colgroup>
+                <thead className="border-b border-rule bg-sunken text-xs font-semibold text-ink-2">
+                  <tr>
+                    <th className="px-4 py-3">Course</th>
+                    <th className="px-4 py-3 text-center">Enrolled</th>
+                    <th className="px-4 py-3">Status Breakdown</th>
+                    <th className="px-4 py-3">Avg Progress</th>
+                    <th className="px-4 py-3 text-center">Quiz Pass Rate</th>
+                    <th className="px-4 py-3">Target Skills</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rule-soft">
+                  {(!hrData || hrData.course_summaries.length === 0) && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-sm text-ink-3">
+                        No course analytics data available.
+                      </td>
+                    </tr>
+                  )}
+                  {hrData?.course_summaries.map((cs) => (
+                    <tr key={cs.course_id} className="hover:bg-hover">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-ink">{cs.title}</div>
+                        <div className="text-xs text-ink-3 font-mono">{cs.course_code}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center tabular-nums font-semibold">
+                        {cs.enrolled_count}
+                      </td>
+                      <td className="px-4 py-3 text-xs space-y-1">
+                        <div className="flex justify-between text-ink-2">
+                          <span>Not started: {cs.not_started_count}</span>
+                          <span>In progress: {cs.in_progress_count}</span>
+                        </div>
+                        <div className="flex justify-between text-ink-2">
+                          <span className="text-risk-low font-medium">Completed: {cs.completed_count}</span>
+                          {cs.overdue_count > 0 ? (
+                            <span className="text-risk-critical font-medium">Overdue: {cs.overdue_count}</span>
+                          ) : (
+                            <span className="text-ink-3">Overdue: 0</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 flex-1 rounded-full bg-sunken overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-accent transition-all duration-300"
+                              style={{ width: `${Math.min(100, Number(cs.avg_progress_percentage))}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold tabular-nums text-ink">
+                            {Number(cs.avg_progress_percentage).toFixed(0)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            Number(cs.quiz_pass_rate) >= 70
+                              ? "bg-accent-soft text-link"
+                              : Number(cs.quiz_pass_rate) > 0
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                              : "bg-sunken text-ink-3"
+                          }`}
+                        >
+                          {Number(cs.quiz_pass_rate).toFixed(0)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {cs.target_skills.map((sk) => (
+                            <span
+                              key={sk}
+                              className="rounded border border-rule px-1.5 py-0.5 text-[11px] text-ink-2 bg-sunken"
+                            >
+                              {sk}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Learner Follow-up Support Queue */}
+          <section className="card-raised p-5" aria-label="Learner Support Queue">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-[15px] font-semibold text-ink flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-risk-critical" />
+                  Learner Follow-up Support Queue
+                  {hrData && hrData.needs_support_count > 0 && (
+                    <span className="rounded-full bg-risk-critical/15 px-2 py-0.5 text-xs font-bold text-risk-critical">
+                      {hrData.needs_support_count} need attention
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-ink-3">
+                  Employees identified with stalled learning progress (over 60 days inactive) or repeated quiz difficulties.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] table-fixed text-left text-[13px] text-ink">
+                <colgroup>
+                  <col style={{ width: "24%" }} />
+                  <col style={{ width: "24%" }} />
+                  <col style={{ width: 140 }} />
+                  <col style={{ width: 120 }} />
+                  <col />
+                  <col style={{ width: 140 }} />
+                </colgroup>
+                <thead className="border-b border-rule bg-sunken text-xs font-semibold text-ink-2">
+                  <tr>
+                    <th className="px-4 py-3">Employee</th>
+                    <th className="px-4 py-3">Course</th>
+                    <th className="px-4 py-3">Lesson Progress</th>
+                    <th className="px-4 py-3 text-center">Quiz Score</th>
+                    <th className="px-4 py-3">Identified Concern / Support Reason</th>
+                    <th className="px-4 py-3 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rule-soft">
+                  {(!hrData || hrData.enrollments.filter((e) => e.needs_support).length === 0) && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-sm text-ink-3">
+                        <CheckCircle2 className="mx-auto h-8 w-8 text-risk-low mb-2" />
+                        No learners currently flagged for urgent support. All in-flight learning is proceeding on track.
+                      </td>
+                    </tr>
+                  )}
+                  {hrData?.enrollments
+                    .filter((e) => e.needs_support)
+                    .map((en) => (
+                      <tr key={en.enrollment_id} className="hover:bg-hover">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-ink">{en.employee_name}</div>
+                          <div className="text-xs text-ink-3">
+                            {en.employee_code} · {en.department_name}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="truncate font-medium text-ink">{en.course_title}</div>
+                          <div className="text-xs text-ink-3">Enrolled {en.enrollment_date}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 flex-1 rounded-full bg-sunken overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-amber-500"
+                                style={{ width: `${Math.min(100, Number(en.progress_percentage))}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-semibold tabular-nums text-ink">
+                              {Number(en.progress_percentage).toFixed(0)}%
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-ink-3 mt-0.5">
+                            {en.completed_lessons} of {en.total_lessons} lessons
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {en.latest_quiz_score != null ? (
+                            <span
+                              className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${
+                                en.quiz_passed ? "bg-accent-soft text-link" : "bg-risk-critical/10 text-risk-critical"
+                              }`}
+                            >
+                              {Number(en.latest_quiz_score).toFixed(0)}% {en.quiz_passed ? "(Passed)" : "(Failed)"}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-ink-3">Not attempted</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-risk-critical font-medium block">
+                            {en.support_reason || "Progress stagnated"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAssessmentForm((prev) => ({
+                                ...prev,
+                                employee_id: en.employee_id,
+                                training_course_id: en.course_id,
+                                assessment_type: "POST_TRAINING",
+                              }));
+                              setAssessmentModalOpen(true);
+                            }}
+                            className="btn h-8 text-xs font-medium"
+                          >
+                            Assess Skill
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Before-and-After Skill Assessment Impact */}
+          <section className="card-raised p-5" aria-label="Before-and-After Skill Assessment Impact">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-[15px] font-semibold text-ink flex items-center gap-2">
+                  <Award className="h-4 w-4 text-link" />
+                  Before-and-After Skill Assessment Impact
+                </h2>
+                <p className="text-xs text-ink-3">
+                  Measurable comparison between baseline pre-training evaluations and post-training assessments, tracking practical proficiency growth and remaining role gaps.
+                </p>
+              </div>
+              <button onClick={openAssessmentDialog} className="btn btn-primary h-8 text-xs">
+                <Plus className="h-3.5 w-3.5 mr-1" /> Log Evaluation
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px] table-fixed text-left text-[13px] text-ink">
+                <colgroup>
+                  <col style={{ width: "22%" }} />
+                  <col style={{ width: "22%" }} />
+                  <col style={{ width: 140 }} />
+                  <col style={{ width: 140 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 120 }} />
+                </colgroup>
+                <thead className="border-b border-rule bg-sunken text-xs font-semibold text-ink-2">
+                  <tr>
+                    <th className="px-4 py-3">Employee</th>
+                    <th className="px-4 py-3">Skill & Course</th>
+                    <th className="px-4 py-3 text-center">Baseline Test</th>
+                    <th className="px-4 py-3 text-center">Post-Training Test</th>
+                    <th className="px-4 py-3 text-center">Score Delta</th>
+                    <th className="px-4 py-3 text-center">Assessed Proficiency</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rule-soft">
+                  {pairedAssessments.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-sm text-ink-3">
+                        No paired before-and-after skill assessments recorded yet. Click "Log Evaluation" to record a baseline or post-training assessment.
+                      </td>
+                    </tr>
+                  )}
+                  {pairedAssessments.map((a, idx) => (
+                    <tr key={`${a.employee_id}-${a.skill_id}-${idx}`} className="hover:bg-hover">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-ink">{a.employee_name}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-ink">{a.skill_name}</div>
+                        <div className="text-xs text-ink-3 truncate">{a.course_title || "General Training"}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {a.baselineScore != null ? (
+                          <div>
+                            <span className="font-semibold text-ink tabular-nums">
+                              {a.baselineScore.toFixed(1)}%
+                            </span>
+                            <div className="text-[11px] text-ink-3">{a.baselineDate}</div>
+                          </div>
+                        ) : (
+                          <span className="text-ink-3 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {a.postScore != null ? (
+                          <div>
+                            <span className="font-semibold text-ink tabular-nums">
+                              {a.postScore.toFixed(1)}%
+                            </span>
+                            <div className="text-[11px] text-ink-3">{a.postDate}</div>
+                          </div>
+                        ) : (
+                          <span className="text-amber-500 text-xs font-medium">Pending post-test</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {a.delta != null ? (
+                          <span
+                            className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${
+                              a.delta > 0
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : a.delta === 0
+                                ? "bg-sunken text-ink-3"
+                                : "bg-risk-critical/10 text-risk-critical"
+                            }`}
+                          >
+                            <TrendingUp className="h-3 w-3" />
+                            {a.delta > 0 ? `+${a.delta.toFixed(1)}%` : `${a.delta.toFixed(1)}%`}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-ink-3">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {a.proficiency != null ? (
+                          <div className="font-semibold text-ink text-xs">
+                            Level {a.proficiency} / 5
+                          </div>
+                        ) : (
+                          <span className="text-ink-3 text-xs">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Add / edit course */}
       {courseDialog && (
@@ -1222,6 +1744,124 @@ export const TrainingPage: React.FC = () => {
               </button>
               <button type="submit" disabled={saving} className="btn btn-primary">
                 {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Record skill assessment modal */}
+      {assessmentModalOpen && (
+        <Modal
+          title="Record Skill Assessment"
+          subtitle="Evaluate employee skill before training (baseline) or after training to verify improvement and update role gap proficiency."
+          onClose={() => setAssessmentModalOpen(false)}
+        >
+          <form onSubmit={saveAssessment} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Employee">
+                <select
+                  required
+                  className="field"
+                  value={assessmentForm.employee_id}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, employee_id: e.target.value })}
+                >
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name} ({emp.employee_code}) - {emp.department_name || ""}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Target Skill">
+                <select
+                  required
+                  className="field"
+                  value={assessmentForm.skill_id}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, skill_id: e.target.value })}
+                >
+                  {skills.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.skill_category || "Skill"})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Assessment Type">
+                <select
+                  className="field"
+                  value={assessmentForm.assessment_type}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, assessment_type: e.target.value as any })}
+                >
+                  <option value="BASELINE">Baseline Assessment (Pre-training)</option>
+                  <option value="POST_TRAINING">Post-Training Assessment</option>
+                </select>
+              </Field>
+              <Field label="Related Training Course (Optional)">
+                <select
+                  className="field"
+                  value={assessmentForm.training_course_id}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, training_course_id: e.target.value })}
+                >
+                  <option value="">No Course Link</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title} ({c.course_code})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Assessment Score (%)">
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  className="field"
+                  value={assessmentForm.score}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, score: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="Assessed Practical Proficiency (1 - 5)">
+                <select
+                  className="field"
+                  value={assessmentForm.assessed_proficiency}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, assessed_proficiency: Number(e.target.value) })}
+                >
+                  <option value={1}>1 - Beginner / Foundational</option>
+                  <option value={2}>2 - Developing / Basic</option>
+                  <option value={3}>3 - Intermediate / Competent</option>
+                  <option value={4}>4 - Advanced / Proficient</option>
+                  <option value={5}>5 - Expert / Master</option>
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Evaluation Notes">
+              <textarea
+                rows={3}
+                className="field"
+                placeholder="Document the evaluation method, project performance, or practical assessment findings..."
+                value={assessmentForm.notes}
+                onChange={(e) => setAssessmentForm({ ...assessmentForm, notes: e.target.value })}
+              />
+            </Field>
+
+            {errorBox}
+
+            <div className="flex justify-end gap-3 border-t border-rule-soft pt-4">
+              <button type="button" onClick={() => setAssessmentModalOpen(false)} className="btn">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving} className="btn btn-primary">
+                {saving ? "Saving..." : "Record Assessment"}
               </button>
             </div>
           </form>

@@ -5,7 +5,6 @@ import { getErrorMessage } from "../services/api";
 import {
   AlertCircle,
   ArrowRight,
-  Building2,
   CircleHelp,
   Eye,
   EyeOff,
@@ -28,9 +27,9 @@ const REMEMBER_KEY = "wf-remembered-email";
 const DEMO_PASSWORD = "demo1234";
 
 const ROLES = [
-  { id: "admin", label: "HR Admin", note: "Full Access", email: "admin@workforce.local", icon: Building2 },
-  { id: "manager", label: "HR Manager", note: "Team Management", email: "user@workforce.local", icon: Users },
-  { id: "employee", label: "Employee", note: "Self Service", email: "demo@workforce.local", icon: User },
+  { id: "admin", label: "HR Admin", note: "Governance & Admin", email: "admin@workforce.local", icon: ShieldCheck },
+  { id: "manager", label: "HR Manager", note: "Workforce & Retention", email: "user@workforce.local", icon: Users },
+  { id: "employee", label: "Employee", note: "Personal Self-Service", email: "demo@workforce.local", icon: User },
 ] as const;
 
 type RoleId = (typeof ROLES)[number]["id"];

@@ -144,10 +144,47 @@ const actionTitle = (rec: Recommendation) => {
 const joinDrivers = (drivers: string[]) =>
   drivers.map((d, i) => (i === 0 ? d : d.charAt(0).toLowerCase() + d.slice(1))).join(", ");
 
+/**
+ * Compact pagination generator.
+ * For six pages, when on page 1, yields: [0, "ellipsis-end", 5] -> "Previous | 1 | … | 6 | Next".
+ * Adapts smoothly to current page while keeping pagination compact.
+ */
+const getCompactPagination = (
+  currentPage: number,
+  pageCount: number
+): (number | "ellipsis-start" | "ellipsis-end")[] => {
+  if (pageCount <= 5) {
+    return Array.from({ length: pageCount }, (_, i) => i);
+  }
+
+  // On first page
+  if (currentPage === 0) {
+    return [0, "ellipsis-end", pageCount - 1];
+  }
+
+  // On last page
+  if (currentPage === pageCount - 1) {
+    return [0, "ellipsis-start", pageCount - 1];
+  }
+
+  // On second page
+  if (currentPage === 1) {
+    return [0, 1, "ellipsis-end", pageCount - 1];
+  }
+
+  // On second-to-last page
+  if (currentPage === pageCount - 2) {
+    return [0, "ellipsis-start", pageCount - 2, pageCount - 1];
+  }
+
+  // Intermediate page
+  return [0, "ellipsis-start", currentPage, "ellipsis-end", pageCount - 1];
+};
+
 const fetchOverview = async (): Promise<OverviewData> => {
   const [summaryRes, employeesRes, historyRes, recsRes, modelsRes] = await Promise.all([
     api.get("/dashboard/summary"),
-    api.get("/employees", { params: { page_size: 100 } }),
+    api.get("/employees", { params: { page_size: 250 } }),
     api.get("/predictions/history", { params: { page_size: 100 } }),
     api.get("/recommendations", {
       params: { status: "PENDING", page_size: 100 },
@@ -209,19 +246,34 @@ export const DashboardPage: React.FC = () => {
 
     return data.employees
       .filter((e) => isRiskLevel(e.latest_risk_level) && e.latest_risk_score != null)
-      .map((e) => ({
-        id: e.id,
-        name: e.full_name || `${e.first_name} ${e.last_name}`,
-        role: e.job_role_title ?? "",
-        department: e.department_name ?? "Unassigned",
-        level: e.latest_risk_level as RiskLevel,
-        score: Number(e.latest_risk_score),
-        drivers: (driversById.get(e.id) ?? []).filter((d) => d !== "Normal workforce baseline metrics"),
-        openActions: openById.get(e.id) ?? 0,
-      }));
+      .map((e) => {
+        const rawReason = e.latest_prediction_reason || driversById.get(e.id)?.join(" • ") || "";
+        const rawDrivers = rawReason ? rawReason.split(" • ").map((d) => d.trim()).filter(Boolean) : [];
+        const drivers = rawDrivers.filter((d) => d !== "Normal workforce baseline metrics");
+        return {
+          id: e.id,
+          name: e.full_name || `${e.first_name} ${e.last_name}`,
+          role: e.job_role_title ?? "",
+          department: e.department_name ?? "Unassigned",
+          level: e.latest_risk_level as RiskLevel,
+          score: Number(e.latest_risk_score),
+          drivers,
+          openActions: e.open_recommendations_count ?? openById.get(e.id) ?? 0,
+        };
+      });
   }, [data]);
 
-  const counts = useMemo(() => countByLevel(people, (p) => p.level), [people]);
+  const counts = useMemo(() => {
+    if (data?.metrics?.risk_distribution) {
+      return {
+        CRITICAL: data.metrics.risk_distribution.critical ?? 0,
+        HIGH: data.metrics.risk_distribution.high ?? 0,
+        MEDIUM: data.metrics.risk_distribution.medium ?? 0,
+        LOW: data.metrics.risk_distribution.low ?? 0,
+      };
+    }
+    return countByLevel(people, (p) => p.level);
+  }, [data, people]);
   const atRisk = counts.HIGH + counts.CRITICAL;
   const shownAtRisk = useCountUp(atRisk);
 
@@ -385,7 +437,8 @@ export const DashboardPage: React.FC = () => {
   const lastScored = data.history[0]?.generated_at;
   const allOn = levels.length === RISK_LEVELS.length;
   const filtersChanged = !sameLevels(levels, AT_RISK_LEVELS) || deptFilter !== null || query !== "";
-  const headline = `${atRisk} of ${people.length} people are at high or critical risk of leaving`;
+  const totalHeadcount = data.metrics.total_employees || people.length;
+  const headline = `${atRisk} of ${totalHeadcount} people are at high or critical risk of leaving`;
 
   return (
     <div className="space-y-6">
@@ -406,7 +459,7 @@ export const DashboardPage: React.FC = () => {
                   {numberFormat.format(shownAtRisk)}
                 </span>
                 <span aria-hidden="true" className="text-base leading-snug text-ink-2 sm:text-lg">
-                  of {numberFormat.format(people.length)} people are at high or critical risk of leaving
+                  of {numberFormat.format(totalHeadcount)} people are at high or critical risk of leaving
                 </span>
               </h1>
               <p className="mt-2.5 text-[13px] text-ink-3">
@@ -705,30 +758,42 @@ export const DashboardPage: React.FC = () => {
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 0}
-                className="btn h-8 w-8 px-0"
+                className="btn h-8 px-2.5 gap-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Previous page"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                <span>Previous</span>
               </button>
-              {Array.from({ length: pageCount }, (_, n) => (
-                <button
-                  key={n}
-                  onClick={() => goToPage(n)}
-                  aria-current={n === currentPage ? "page" : undefined}
-                  aria-label={`Page ${n + 1}`}
-                  className={`btn h-8 min-w-8 px-2 tabular-nums ${
-                    n === currentPage ? "!border-accent-ring !bg-accent-soft !text-link" : ""
-                  }`}
-                >
-                  {n + 1}
-                </button>
-              ))}
+              {getCompactPagination(currentPage, pageCount).map((item, idx) =>
+                typeof item === "number" ? (
+                  <button
+                    key={`page-${item}`}
+                    onClick={() => goToPage(item)}
+                    aria-current={item === currentPage ? "page" : undefined}
+                    aria-label={`Page ${item + 1}`}
+                    className={`btn h-8 min-w-8 px-2 tabular-nums ${
+                      item === currentPage ? "!border-accent-ring !bg-accent-soft !text-link font-semibold" : ""
+                    }`}
+                  >
+                    {item + 1}
+                  </button>
+                ) : (
+                  <span
+                    key={`ellipsis-${idx}`}
+                    className="flex h-8 min-w-6 items-center justify-center px-1 text-ink-3 select-none"
+                    aria-hidden="true"
+                  >
+                    …
+                  </span>
+                )
+              )}
               <button
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage >= pageCount - 1}
-                className="btn h-8 w-8 px-0"
+                className="btn h-8 px-2.5 gap-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Next page"
               >
+                <span>Next</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </button>
             </nav>

@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api, { getErrorMessage } from "../services/api";
-import type { PriorityLevel, Recommendation, RecommendationStatus, RecommendationType } from "../types";
+import type {
+  EmployeeListItem,
+  EmployeeRequest,
+  InterventionStatus,
+  PriorityLevel,
+  Recommendation,
+  RecommendationStatus,
+  RecommendationType,
+  RetentionIntervention,
+  RetentionOutcome,
+} from "../types";
 import {
   ClipboardList,
   TriangleAlert,
@@ -16,8 +26,13 @@ import {
   CircleCheckBig,
   FileX,
   Lightbulb,
+  Plus,
+  Clock,
+  UserCheck,
+  MessageSquare,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Modal, Field } from "../components/Modal";
 
 const PAGE_SIZE = 7;
 
@@ -49,6 +64,19 @@ const STATUS_LABEL: Record<RecommendationStatus, string> = {
   ACCEPTED: "Accepted",
   COMPLETED: "Completed",
   REJECTED: "Rejected",
+};
+
+const INTERVENTION_STATUS_LABEL: Record<InterventionStatus, string> = {
+  OFFERED: "Offered",
+  ACCEPTED: "Accepted",
+  DECLINED: "Declined",
+  COMPLETED: "Completed",
+};
+
+const OUTCOME_LABEL: Record<RetentionOutcome, string> = {
+  PENDING: "Pending Follow-up",
+  EMPLOYED: "Retained (Employed)",
+  DEPARTED: "Departed",
 };
 
 const TYPES: { value: RecommendationType | "ALL"; label: string }[] = [
@@ -169,9 +197,19 @@ interface RowProps {
   onSelect: () => void;
   onMenu: () => void;
   onUpdate: (id: string, status: RecommendationStatus) => void;
+  onTrackIntervention?: () => void;
 }
 
-const ActionRow: React.FC<RowProps> = ({ rec, score, selected, menuOpen, onSelect, onMenu, onUpdate }) => {
+const ActionRow: React.FC<RowProps> = ({
+  rec,
+  score,
+  selected,
+  menuOpen,
+  onSelect,
+  onMenu,
+  onUpdate,
+  onTrackIntervention,
+}) => {
   const name = rec.employee_name ?? "Employee";
   const canReject = rec.status === "PENDING" || rec.status === "ACCEPTED";
   return (
@@ -255,7 +293,17 @@ const ActionRow: React.FC<RowProps> = ({ rec, score, selected, menuOpen, onSelec
                 <EllipsisVertical className="h-4 w-4" aria-hidden="true" />
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-9 z-10 w-36 rounded-lg border border-rule bg-panel p-1 shadow-lg">
+                <div className="absolute right-0 top-9 z-10 w-44 rounded-lg border border-rule bg-panel p-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onTrackIntervention?.();
+                      onMenu();
+                    }}
+                    className="w-full rounded-md px-3 py-2 text-left text-[13px] font-medium text-link hover:bg-sunken hover:text-ink"
+                  >
+                    Track Intervention
+                  </button>
                   <button
                     type="button"
                     onClick={() => onUpdate(rec.id, "REJECTED")}
@@ -289,6 +337,44 @@ export const RecommendationsPage: React.FC = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menuId, setMenuId] = useState<string | null>(null);
 
+  // Retention Intervention State
+  const [activeTab, setActiveTab] = useState<"recommendations" | "retention" | "requests">("recommendations");
+  const [interventions, setInterventions] = useState<RetentionIntervention[]>([]);
+  const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
+  const [createInterventionModal, setCreateInterventionModal] = useState(false);
+  const [updateInterventionModal, setUpdateInterventionModal] = useState<RetentionIntervention | null>(null);
+  const [savingIntervention, setSavingIntervention] = useState(false);
+  const [interventionError, setInterventionError] = useState<string | null>(null);
+
+  // Employee Discussion Requests State
+  const [requests, setRequests] = useState<EmployeeRequest[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [reviewRequestModal, setReviewRequestModal] = useState<EmployeeRequest | null>(null);
+  const [requestReviewForm, setRequestReviewForm] = useState({
+    status: "SCHEDULED",
+    response_notes: "",
+  });
+  const [savingRequestReview, setSavingRequestReview] = useState(false);
+
+  const [createForm, setCreateForm] = useState({
+    employee_id: "",
+    recommendation_id: undefined as string | undefined,
+    concern_summary: "",
+    proposed_intervention: "",
+    intervention_type: "WORKLOAD_REVIEW",
+    follow_up_date: new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0],
+    notes: "",
+  });
+
+  const [updateForm, setUpdateForm] = useState({
+    status: "OFFERED" as InterventionStatus,
+    retention_outcome: "PENDING" as RetentionOutcome,
+    intervention_effectiveness: "PENDING_ASSESSMENT",
+    follow_up_date: "",
+    notes: "",
+    outcome_notes: "",
+  });
+
   const fetchRecs = useCallback(async () => {
     try {
       const all: Recommendation[] = [];
@@ -312,9 +398,47 @@ export const RecommendationsPage: React.FC = () => {
     }
   }, []);
 
+  const fetchInterventions = useCallback(async () => {
+    try {
+      const res = await api.get("/retention/interventions");
+      setInterventions(res.data);
+    } catch (err) {
+      console.error("Failed to fetch retention interventions", err);
+    }
+  }, []);
+
+  const fetchEmployees = useCallback(async () => {
+    try {
+      const all: EmployeeListItem[] = [];
+      for (let p = 1; p <= 20; p++) {
+        const res = await api.get("/employees", { params: { page: p, page_size: 100 } });
+        all.push(...res.data.items);
+        if (all.length >= res.data.total || res.data.items.length === 0) break;
+      }
+      setEmployees(all);
+    } catch (err) {
+      console.error("Failed to fetch employees", err);
+    }
+  }, []);
+
+  const fetchRequests = useCallback(async () => {
+    setLoadingRequests(true);
+    try {
+      const res = await api.get("/employees/discussion-requests");
+      setRequests(res.data);
+    } catch (err) {
+      console.error("Failed to fetch discussion requests", err);
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchRecs();
-  }, [fetchRecs]);
+    fetchInterventions();
+    fetchEmployees();
+    fetchRequests();
+  }, [fetchRecs, fetchInterventions, fetchEmployees, fetchRequests]);
 
   // Close the row menu on any outside click
   useEffect(() => {
@@ -323,6 +447,131 @@ export const RecommendationsPage: React.FC = () => {
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [menuId]);
+
+  const handleOpenInterventionForRec = (rec: Recommendation) => {
+    setCreateForm({
+      employee_id: rec.employee_id,
+      recommendation_id: rec.id,
+      concern_summary: rec.description || rec.title,
+      proposed_intervention:
+        rec.recommendation_type === "RETENTION"
+          ? "Targeted 1-on-1 retention interview, workload review, and career-development planning."
+          : `Structured capability building and mentor pairing for ${rec.title}.`,
+      intervention_type: rec.recommendation_type === "RETENTION" ? "WORKLOAD_REVIEW" : "TRAINING",
+      follow_up_date: new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0],
+      notes: `Initiated from ${rec.priority.toLowerCase()} priority recommendation.`,
+    });
+    setInterventionError(null);
+    setCreateInterventionModal(true);
+  };
+
+  const handleSaveIntervention = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingIntervention(true);
+    setInterventionError(null);
+    try {
+      await api.post("/retention/interventions", {
+        employee_id: createForm.employee_id,
+        recommendation_id: createForm.recommendation_id || null,
+        concern_summary: createForm.concern_summary,
+        intervention_type: createForm.intervention_type,
+        status: "OFFERED",
+        follow_up_date: createForm.follow_up_date || null,
+        notes: createForm.notes.trim() || null,
+      });
+      setCreateInterventionModal(false);
+      await fetchInterventions();
+      setNotice("Retention intervention recorded successfully.");
+    } catch (err) {
+      setInterventionError(getErrorMessage(err, "Failed to create intervention"));
+    } finally {
+      setSavingIntervention(false);
+    }
+  };
+
+  const handleOpenUpdateIntervention = (item: RetentionIntervention) => {
+    setUpdateInterventionModal(item);
+    setUpdateForm({
+      status: item.status,
+      retention_outcome: item.retention_outcome,
+      intervention_effectiveness: item.intervention_effectiveness || "PENDING_ASSESSMENT",
+      follow_up_date: item.follow_up_date || "",
+      notes: item.notes || "",
+      outcome_notes: item.outcome_notes || "",
+    });
+    setInterventionError(null);
+  };
+
+  const handleSaveUpdateIntervention = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!updateInterventionModal) return;
+    setSavingIntervention(true);
+    setInterventionError(null);
+    try {
+      await api.put(`/retention/interventions/${updateInterventionModal.id}`, {
+        status: updateForm.status,
+        retention_outcome: updateForm.retention_outcome,
+        intervention_effectiveness: updateForm.intervention_effectiveness || null,
+        follow_up_date: updateForm.follow_up_date || null,
+        notes: updateForm.notes.trim() || null,
+        outcome_notes: updateForm.outcome_notes.trim() || null,
+        completed_date:
+          updateForm.status === "COMPLETED"
+            ? updateInterventionModal.completed_date || new Date().toISOString().split("T")[0]
+            : null,
+      });
+      setUpdateInterventionModal(null);
+      await fetchInterventions();
+      setNotice("Retention intervention updated.");
+    } catch (err) {
+      setInterventionError(getErrorMessage(err, "Failed to update intervention"));
+    } finally {
+      setSavingIntervention(false);
+    }
+  };
+
+  const handleOpenReviewRequest = (req: EmployeeRequest) => {
+    setReviewRequestModal(req);
+    setRequestReviewForm({
+      status: req.status === "PENDING" ? "SCHEDULED" : req.status,
+      response_notes: req.response_notes || "",
+    });
+  };
+
+  const handleSaveReviewRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewRequestModal) return;
+    setSavingRequestReview(true);
+    try {
+      await api.patch(`/employees/discussion-requests/${reviewRequestModal.id}`, {
+        status: requestReviewForm.status,
+        response_notes: requestReviewForm.response_notes.trim() || null,
+      });
+      setReviewRequestModal(null);
+      await fetchRequests();
+      setNotice("Discussion request updated successfully.");
+    } catch (err) {
+      alert(getErrorMessage(err, "Failed to update discussion request"));
+    } finally {
+      setSavingRequestReview(false);
+    }
+  };
+
+  const handleConvertRequestToIntervention = (req: EmployeeRequest) => {
+    setCreateForm({
+      employee_id: req.employee_id,
+      recommendation_id: undefined,
+      concern_summary: `Employee discussion request: ${req.topic}`,
+      proposed_intervention: req.notes
+        ? `Follow-up support: ${req.notes}`
+        : "1-on-1 career development and support discussion",
+      intervention_type: req.request_type === "LEARNING_INTEREST" ? "TRAINING" : "CAREER_DEVELOPMENT",
+      follow_up_date: new Date(Date.now() + 60 * 86400000).toISOString().split("T")[0],
+      notes: `Initiated from employee request #${req.id.slice(0, 8)} (${req.request_type})`,
+    });
+    setInterventionError(null);
+    setCreateInterventionModal(true);
+  };
 
   const handleGenerateAll = async () => {
     setGenerating(true);
@@ -497,19 +746,62 @@ export const RecommendationsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <p className="text-[13.5px] text-ink-2">
-        Take action on retention risks, skill gaps and development opportunities.
-      </p>
+      <div>
+        <h1 className="text-[28px] font-semibold leading-tight text-ink">Recommendations & Retention</h1>
+        <p className="text-[13.5px] text-ink-2">
+          Take action on retention risks, skill gaps, and track longitudinal retention interventions.
+        </p>
+      </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="flex border-b border-rule-soft gap-2">
+        <button
+          onClick={() => setActiveTab("recommendations")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "recommendations"
+              ? "border-accent text-link font-semibold"
+              : "border-transparent text-ink-2 hover:text-ink"
+          }`}
+        >
+          <ListChecks className="inline-block mr-1.5 h-4 w-4" /> Action Items Backlog
+        </button>
+        <button
+          onClick={() => setActiveTab("retention")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "retention"
+              ? "border-accent text-link font-semibold"
+              : "border-transparent text-ink-2 hover:text-ink"
+          }`}
+        >
+          <Sparkles className="inline-block mr-1.5 h-4 w-4" /> Retention Interventions & Follow-up
+        </button>
+        <button
+          onClick={() => setActiveTab("requests")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            activeTab === "requests"
+              ? "border-accent text-link font-semibold"
+              : "border-transparent text-ink-2 hover:text-ink"
+          }`}
+        >
+          <MessageSquare className="h-4 w-4" /> Employee Discussion Requests
+          {requests.filter((r) => r.status === "PENDING").length > 0 && (
+            <span className="ml-1 inline-flex items-center rounded-full bg-accent text-white px-2 py-0.5 text-xs font-bold">
+              {requests.filter((r) => r.status === "PENDING").length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === "recommendations" && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={ClipboardList} label="Pending actions" value={kpis.pending} note="Requires your review" />
         <Kpi
           icon={TriangleAlert}
           tone="var(--risk-critical)"
           label="Critical risk"
           value={kpis.atRisk}
-          note="People at high risk of leaving"
+          note="Employees with high predicted attrition risk"
         />
         <Kpi icon={GraduationCap} label="Training gaps" value={kpis.gaps} note="Skill gaps to close" />
         <Kpi
@@ -699,6 +991,7 @@ export const RecommendationsPage: React.FC = () => {
                     }
                     onMenu={() => setMenuId(menuId === rec.id ? null : rec.id)}
                     onUpdate={handleUpdateStatus}
+                    onTrackIntervention={() => handleOpenInterventionForRec(rec)}
                   />
                 ))}
               </ul>
@@ -910,6 +1203,666 @@ export const RecommendationsPage: React.FC = () => {
           </ol>
         )}
       </section>
+        </>
+      )}
+
+      {/* Tab: Retention Interventions & Follow-up */}
+      {activeTab === "retention" && (
+        <div className="space-y-6">
+          {/* Retention KPIs */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Kpi
+              icon={ClipboardList}
+              label="Tracked Interventions"
+              value={interventions.length}
+              note="Active HR retention plans"
+            />
+            <Kpi
+              icon={Clock}
+              tone="var(--risk-medium)"
+              label="Offered / In Progress"
+              value={interventions.filter((i) => i.status === "OFFERED" || i.status === "ACCEPTED").length}
+              note="Awaiting follow-up milestone"
+            />
+            <Kpi
+              icon={CircleCheck}
+              tone="var(--risk-low)"
+              label="Completed Interventions"
+              value={interventions.filter((i) => i.status === "COMPLETED").length}
+              note="Concluded intervention programs"
+            />
+            <Kpi
+              icon={UserCheck}
+              tone="var(--risk-low)"
+              label="Documented Retained"
+              value={interventions.filter((i) => i.retention_outcome === "EMPLOYED").length}
+              note={`${interventions.filter((i) => i.retention_outcome === "DEPARTED").length} departed · ${interventions.filter((i) => i.retention_outcome === "PENDING").length} pending`}
+            />
+          </div>
+
+          {/* Interventions Table Card */}
+          <section className="card p-5 sm:p-6" aria-labelledby="retention-table-title">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 id="retention-table-title" className="text-lg font-semibold text-ink">
+                  Retention Interventions & Follow-up Tracking
+                </h2>
+                <p className="text-[13px] text-ink-3">
+                  Structured HR interventions for attrition-risk employees with documented 3- and 6-month employment outcomes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateForm({
+                    employee_id: employees.length > 0 ? employees[0].id : "",
+                    recommendation_id: undefined,
+                    concern_summary: "High attrition risk identified via workforce predictive model",
+                    proposed_intervention: "1-on-1 workload rebalancing and compensation/growth review discussion",
+                    intervention_type: "WORKLOAD_REVIEW",
+                    follow_up_date: new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0],
+                    notes: "",
+                  });
+                  setInterventionError(null);
+                  setCreateInterventionModal(true);
+                }}
+                className="btn btn-primary h-9 px-4 text-xs"
+              >
+                <Plus className="h-4 w-4 mr-1" /> Log New Intervention
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[950px] table-fixed text-left text-[13px] text-ink">
+                <colgroup>
+                  <col style={{ width: "19%" }} />
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 90 }} />
+                </colgroup>
+                <thead className="border-b border-rule bg-sunken text-xs font-semibold text-ink-2">
+                  <tr>
+                    <th className="px-4 py-3">Employee</th>
+                    <th className="px-4 py-3">Identified Concern</th>
+                    <th className="px-4 py-3">Intervention Type</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-center">Follow-up Date</th>
+                    <th className="px-4 py-3 text-center">Documented Outcome</th>
+                    <th className="px-4 py-3 text-center">Effectiveness</th>
+                    <th className="px-4 py-3 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rule-soft">
+                  {interventions.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-sm text-ink-3">
+                        No retention interventions recorded yet. Click "Log New Intervention" or track an action from the recommendations backlog.
+                      </td>
+                    </tr>
+                  )}
+                  {interventions.map((item) => (
+                    <tr key={item.id} className="hover:bg-hover">
+                      <td className="px-4 py-3">
+                        <Link
+                          to={`/employees/${item.employee_id}`}
+                          className="font-medium text-ink hover:underline block truncate"
+                        >
+                          {item.employee_name || "Employee"}
+                        </Link>
+                        <div className="text-xs text-ink-3">
+                          {item.employee_code} · {item.department_name || item.job_title}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="line-clamp-2 text-ink text-xs leading-snug" title={item.concern_summary}>
+                          {item.concern_summary}
+                        </div>
+                        <div className="text-[11px] text-ink-3 mt-1 truncate">
+                          Resp: {item.hr_user_name || "HR Team"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-block rounded-md border border-rule px-2 py-0.5 text-xs font-medium bg-sunken text-ink-2">
+                          {item.intervention_type.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            item.status === "COMPLETED"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : item.status === "ACCEPTED"
+                              ? "bg-accent-soft text-link"
+                              : item.status === "DECLINED"
+                              ? "bg-risk-critical/10 text-risk-critical"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          }`}
+                        >
+                          {INTERVENTION_STATUS_LABEL[item.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="text-xs font-medium text-ink tabular-nums">
+                          {item.follow_up_date || "—"}
+                        </div>
+                        {item.follow_up_date && (
+                          <div className="text-[10px] text-ink-3">
+                            {new Date(item.follow_up_date) <= new Date() ? "Milestone due" : "Scheduled"}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            item.retention_outcome === "EMPLOYED"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : item.retention_outcome === "DEPARTED"
+                              ? "bg-sunken text-ink-3"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          }`}
+                        >
+                          {OUTCOME_LABEL[item.retention_outcome]}
+                        </span>
+                        {item.outcome_notes && (
+                          <div
+                            className="text-[11px] text-ink-3 mt-0.5 truncate max-w-[130px] mx-auto"
+                            title={item.outcome_notes}
+                          >
+                            {item.outcome_notes}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            item.intervention_effectiveness === "HELPFUL"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : item.intervention_effectiveness === "UNHELPFUL"
+                              ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                              : item.intervention_effectiveness === "NEUTRAL"
+                              ? "bg-sunken text-ink-2"
+                              : "bg-sunken text-ink-3"
+                          }`}
+                        >
+                          {item.intervention_effectiveness === "HELPFUL"
+                            ? "Helpful"
+                            : item.intervention_effectiveness === "UNHELPFUL"
+                            ? "Unhelpful"
+                            : item.intervention_effectiveness === "NEUTRAL"
+                            ? "Neutral"
+                            : "Pending"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenUpdateIntervention(item)}
+                          className="btn h-8 text-xs font-medium"
+                        >
+                          Update
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6 rounded-lg border border-rule-soft bg-sunken/50 p-4 text-xs text-ink-3 space-y-1">
+              <p className="font-semibold text-ink-2">Methodological & Data Governance Note:</p>
+              <p>
+                Retention follow-up records capture structured HR interventions and verifiable employment outcomes at scheduled intervals (typically 3 or 6 months post-intervention). In accordance with organizational standards, causal efficacy must not be inferred solely from observational employment status. Model feature schemas and ML pipelines remain strictly independent of these intervention records.
+              </p>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Tab: Employee Discussion Requests */}
+      {activeTab === "requests" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Kpi
+              icon={MessageSquare}
+              label="Discussion Requests"
+              value={requests.length}
+              note="Voluntary employee inquiries"
+            />
+            <Kpi
+              icon={Clock}
+              tone="var(--risk-medium)"
+              label="Pending Review"
+              value={requests.filter((r) => r.status === "PENDING").length}
+              note="Awaiting HR review"
+            />
+            <Kpi
+              icon={CircleCheck}
+              tone="var(--link)"
+              label="Scheduled / In Review"
+              value={requests.filter((r) => r.status === "SCHEDULED" || r.status === "IN_REVIEW").length}
+              note="Conversations arranged"
+            />
+            <Kpi
+              icon={UserCheck}
+              tone="var(--risk-low)"
+              label="Resolved / Followed Up"
+              value={requests.filter((r) => r.status === "RESOLVED").length}
+              note="Outcomes addressed"
+            />
+          </div>
+
+          <section className="card p-5 sm:p-6" aria-labelledby="requests-table-title">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 id="requests-table-title" className="text-lg font-semibold text-ink">
+                  Employee Career & Learning Discussion Requests
+                </h2>
+                <p className="text-[13px] text-ink-3">
+                  Inquiries voluntarily submitted by employees seeking career discussions, workload reviews, or learning guidance. HR Managers can review the situation, schedule 1-on-1s, or convert requests directly into structured retention interventions.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px] table-fixed text-left text-[13px] text-ink">
+                <colgroup>
+                  <col style={{ width: "22%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "26%" }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 160 }} />
+                </colgroup>
+                <thead className="border-b border-rule bg-sunken text-xs font-semibold text-ink-2">
+                  <tr>
+                    <th className="px-4 py-3">Employee</th>
+                    <th className="px-4 py-3">Request Type</th>
+                    <th className="px-4 py-3">Topic & Context</th>
+                    <th className="px-4 py-3 text-center">Submitted</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rule-soft">
+                  {loadingRequests ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-sm text-ink-3">
+                        <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                      </td>
+                    </tr>
+                  ) : requests.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-sm text-ink-3">
+                        No employee discussion requests submitted yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    requests.map((req) => (
+                      <tr key={req.id} className="hover:bg-hover">
+                        <td className="px-4 py-3">
+                          <Link
+                            to={`/employees/${req.employee_id}`}
+                            className="font-medium text-ink hover:underline block truncate"
+                          >
+                            {req.employee_name || "Employee"}
+                          </Link>
+                          <div className="text-xs text-ink-3">
+                            {req.employee_code} · {req.department_name || req.job_title}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-block rounded-md border border-rule px-2 py-0.5 text-xs font-medium bg-sunken text-ink-2">
+                            {req.request_type.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-ink text-xs line-clamp-1">{req.topic}</div>
+                          {req.notes && (
+                            <div className="text-[11px] text-ink-3 line-clamp-2 mt-0.5" title={req.notes}>
+                              {req.notes}
+                            </div>
+                          )}
+                          {req.response_notes && (
+                            <div className="mt-1 text-[11px] text-link bg-accent-soft/40 rounded px-1.5 py-0.5">
+                              HR: {req.response_notes}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center text-xs text-ink-3 tabular-nums">
+                          {req.created_at ? new Date(req.created_at).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              req.status === "RESOLVED"
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : req.status === "SCHEDULED" || req.status === "IN_REVIEW"
+                                ? "bg-accent-soft text-link"
+                                : req.status === "CANCELLED"
+                                ? "bg-sunken text-ink-3"
+                                : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                            }`}
+                          >
+                            {req.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReviewRequest(req)}
+                              className="btn h-7 px-2 text-xs font-medium"
+                            >
+                              Respond
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleConvertRequestToIntervention(req)}
+                              className="btn btn-primary h-7 px-2 text-xs font-medium"
+                              title="Create retention intervention from this request"
+                            >
+                              Intervention
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Modal: Log New Retention Intervention */}
+      {createInterventionModal && (
+        <Modal
+          title="Log Retention Intervention"
+          subtitle="Document proposed HR intervention, responsible specialist, and scheduled 3- or 6-month follow-up milestone."
+          onClose={() => setCreateInterventionModal(false)}
+        >
+          <form onSubmit={handleSaveIntervention} className="space-y-4">
+            <Field label="Employee">
+              <select
+                required
+                className="field"
+                value={createForm.employee_id}
+                onChange={(e) => setCreateForm({ ...createForm, employee_id: e.target.value })}
+              >
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.first_name} {emp.last_name} ({emp.employee_code}) - {emp.department_name || ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Intervention Type">
+              <select
+                className="field"
+                value={createForm.intervention_type}
+                onChange={(e) => setCreateForm({ ...createForm, intervention_type: e.target.value })}
+              >
+                <option value="WORKLOAD_REVIEW">Workload Review & Re-balancing</option>
+                <option value="CAREER_DEVELOPMENT">Career Development & Pathing Discussion</option>
+                <option value="MANAGER_CHECK_IN">Manager Check-in & Alignment</option>
+                <option value="TRAINING">Targeted Upskilling & Training</option>
+                <option value="MENTORING">Senior Leadership Mentoring</option>
+                <option value="COMPENSATION_REVIEW">Compensation & Market Alignment Review</option>
+                <option value="FLEXIBLE_WORK">Flexible Work Arrangement</option>
+                <option value="OTHER_SUPPORT">Other Support & Wellbeing</option>
+              </select>
+            </Field>
+
+            <Field label="Identified Concern Summary">
+              <textarea
+                required
+                rows={2}
+                className="field"
+                placeholder="Specific attrition risk or skill gap identified..."
+                value={createForm.concern_summary}
+                onChange={(e) => setCreateForm({ ...createForm, concern_summary: e.target.value })}
+              />
+            </Field>
+
+            <Field label="Proposed Intervention Plan">
+              <textarea
+                required
+                rows={2}
+                className="field"
+                placeholder="Action steps agreed upon with the employee..."
+                value={createForm.proposed_intervention}
+                onChange={(e) => setCreateForm({ ...createForm, proposed_intervention: e.target.value })}
+              />
+            </Field>
+
+            <div>
+              <Field label="Scheduled Follow-up Milestone Date">
+                <input
+                  type="date"
+                  className="field"
+                  value={createForm.follow_up_date}
+                  onChange={(e) => setCreateForm({ ...createForm, follow_up_date: e.target.value })}
+                />
+              </Field>
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCreateForm({
+                      ...createForm,
+                      follow_up_date: new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0],
+                    })
+                  }
+                  className="rounded border border-rule px-2 py-1 text-xs text-ink-2 hover:bg-hover"
+                >
+                  +3 Months
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCreateForm({
+                      ...createForm,
+                      follow_up_date: new Date(Date.now() + 180 * 86400000).toISOString().split("T")[0],
+                    })
+                  }
+                  className="rounded border border-rule px-2 py-1 text-xs text-ink-2 hover:bg-hover"
+                >
+                  +6 Months
+                </button>
+              </div>
+            </div>
+
+            <Field label="Initial Notes (Optional)">
+              <textarea
+                rows={2}
+                className="field"
+                placeholder="Additional HR context or documentation references..."
+                value={createForm.notes}
+                onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+              />
+            </Field>
+
+            {interventionError && (
+              <p className="rounded-lg bg-risk-critical/10 p-3 text-xs text-risk-critical font-medium">
+                {interventionError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3 border-t border-rule-soft pt-4">
+              <button type="button" onClick={() => setCreateInterventionModal(false)} className="btn">
+                Cancel
+              </button>
+              <button type="submit" disabled={savingIntervention} className="btn btn-primary">
+                {savingIntervention ? "Saving..." : "Log Intervention"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal: Update Intervention & Retention Outcome */}
+      {updateInterventionModal && (
+        <Modal
+          title="Update Retention Intervention"
+          subtitle={`Employee: ${updateInterventionModal.employee_name || "Employee"} · Type: ${updateInterventionModal.intervention_type.replace(/_/g, " ")}`}
+          onClose={() => setUpdateInterventionModal(null)}
+        >
+          <form onSubmit={handleSaveUpdateIntervention} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Intervention Status">
+                <select
+                  className="field"
+                  value={updateForm.status}
+                  onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value as InterventionStatus })}
+                >
+                  <option value="OFFERED">Offered</option>
+                  <option value="ACCEPTED">Accepted / In Progress</option>
+                  <option value="DECLINED">Declined</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+              </Field>
+
+              <Field label="Documented Retention Outcome">
+                <select
+                  className="field"
+                  value={updateForm.retention_outcome}
+                  onChange={(e) =>
+                    setUpdateForm({ ...updateForm, retention_outcome: e.target.value as RetentionOutcome })
+                  }
+                >
+                  <option value="PENDING">Pending (Still under observation)</option>
+                  <option value="EMPLOYED">Employed (Retained in organization)</option>
+                  <option value="DEPARTED">Departed (Left organization)</option>
+                </select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Next Follow-up Date">
+                <input
+                  type="date"
+                  className="field"
+                  value={updateForm.follow_up_date}
+                  onChange={(e) => setUpdateForm({ ...updateForm, follow_up_date: e.target.value })}
+                />
+              </Field>
+
+              <Field label="Intervention Effectiveness (Observed Impact)">
+                <select
+                  className="field"
+                  value={updateForm.intervention_effectiveness}
+                  onChange={(e) =>
+                    setUpdateForm({ ...updateForm, intervention_effectiveness: e.target.value })
+                  }
+                >
+                  <option value="PENDING_ASSESSMENT">Pending Assessment</option>
+                  <option value="HELPFUL">Helpful (Observed positive progress / feedback)</option>
+                  <option value="NEUTRAL">Neutral (No noticeable change)</option>
+                  <option value="UNHELPFUL">Unhelpful (Did not address employee situation)</option>
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Outcome Notes & Evidence Documentation">
+              <textarea
+                rows={3}
+                className="field"
+                placeholder="Factual notes documenting employment status or reasons for departure/retention..."
+                value={updateForm.outcome_notes}
+                onChange={(e) => setUpdateForm({ ...updateForm, outcome_notes: e.target.value })}
+              />
+            </Field>
+
+            <Field label="General Progress Notes">
+              <textarea
+                rows={2}
+                className="field"
+                placeholder="Update on meeting outcomes, actions taken, or employee sentiment..."
+                value={updateForm.notes}
+                onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value })}
+              />
+            </Field>
+
+            {interventionError && (
+              <p className="rounded-lg bg-risk-critical/10 p-3 text-xs text-risk-critical font-medium">
+                {interventionError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3 border-t border-rule-soft pt-4">
+              <button type="button" onClick={() => setUpdateInterventionModal(null)} className="btn">
+                Cancel
+              </button>
+              <button type="submit" disabled={savingIntervention} className="btn btn-primary">
+                {savingIntervention ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal: Review Employee Discussion Request */}
+      {reviewRequestModal && (
+        <Modal
+          title="Review Discussion Request"
+          subtitle={`Employee: ${reviewRequestModal.employee_name || "Employee"} · Topic: ${reviewRequestModal.topic}`}
+          onClose={() => setReviewRequestModal(null)}
+        >
+          <form onSubmit={handleSaveReviewRequest} className="space-y-4">
+            <div className="rounded-lg bg-sunken/60 p-3 text-xs space-y-1">
+              <p className="font-semibold text-ink">Employee Inquiry Details</p>
+              <p className="text-ink-2">
+                <span className="text-ink-3">Type:</span> {reviewRequestModal.request_type.replace(/_/g, " ")}
+              </p>
+              {reviewRequestModal.notes && (
+                <p className="text-ink-2">
+                  <span className="text-ink-3">Notes:</span> {reviewRequestModal.notes}
+                </p>
+              )}
+            </div>
+
+            <Field label="Request Status">
+              <select
+                className="field"
+                value={requestReviewForm.status}
+                onChange={(e) => setRequestReviewForm({ ...requestReviewForm, status: e.target.value })}
+              >
+                <option value="PENDING">Pending</option>
+                <option value="IN_REVIEW">In Review</option>
+                <option value="SCHEDULED">Scheduled (Meeting set)</option>
+                <option value="RESOLVED">Resolved (Completed discussion)</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </Field>
+
+            <Field label="Response Notes / Follow-up Details for Employee">
+              <textarea
+                rows={3}
+                required
+                className="field"
+                placeholder="e.g. Scheduled 1-on-1 check-in with HR Manager for Thursday 2 PM to review workload and growth goals..."
+                value={requestReviewForm.response_notes}
+                onChange={(e) => setRequestReviewForm({ ...requestReviewForm, response_notes: e.target.value })}
+              />
+            </Field>
+
+            <div className="flex justify-end gap-3 border-t border-rule-soft pt-4">
+              <button type="button" onClick={() => setReviewRequestModal(null)} className="btn">
+                Cancel
+              </button>
+              <button type="submit" disabled={savingRequestReview} className="btn btn-primary">
+                {savingRequestReview ? "Saving..." : "Save Response"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };

@@ -26,8 +26,11 @@ import {
 import { RiskBadge } from "../components/RiskBadge";
 import { SkillGapList } from "../components/SkillGapList";
 import { EnrollmentStatusBadge } from "../components/EnrollmentStatusBadge";
+import { useAuth } from "../hooks/useAuth";
 
 export const EmployeeDetailsPage: React.FC = () => {
+  const { user } = useAuth();
+  const isManager = user?.role === "HR_MANAGER";
   const { id } = useParams<{ id: string }>();
 
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
@@ -230,9 +233,11 @@ export const EmployeeDetailsPage: React.FC = () => {
             title="Attrition Risk & ML"
             note={prediction ? `${prediction.algorithm} (${prediction.model_version})` : "Latest stored evaluation"}
             action={
-              <button onClick={handleRunPrediction} disabled={predicting} className="btn h-8 px-3 text-xs">
-                {predicting ? "Running..." : "Re-evaluate"}
-              </button>
+              isManager ? (
+                <button onClick={handleRunPrediction} disabled={predicting} className="btn h-8 px-3 text-xs">
+                  {predicting ? "Running..." : "Re-evaluate"}
+                </button>
+              ) : undefined
             }
           />
 
@@ -306,9 +311,11 @@ export const EmployeeDetailsPage: React.FC = () => {
               <Sparkles className="mx-auto mb-2 h-8 w-8 text-link" aria-hidden="true" />
               <p className="text-sm font-semibold text-ink">This employee has not been assessed yet.</p>
               <p className="mb-4 mt-1 text-xs text-ink-3">Run the model to generate an attrition risk evaluation.</p>
-              <button onClick={handleRunPrediction} disabled={predicting} className="btn btn-primary">
-                Run Risk Evaluation
-              </button>
+              {isManager && (
+                <button onClick={handleRunPrediction} disabled={predicting} className="btn btn-primary">
+                  Run Risk Evaluation
+                </button>
+              )}
             </div>
           )}
         </section>
@@ -462,17 +469,23 @@ export const EmployeeDetailsPage: React.FC = () => {
                         {rec.priority} Priority
                       </span>
                     </div>
-                    <select
-                      value={rec.status}
-                      aria-label="Recommendation status"
-                      onChange={(e) => handleUpdateRecStatus(rec.id, e.target.value as RecommendationStatus)}
-                      className="h-8 rounded-lg border border-rule-strong bg-panel px-2.5 text-xs text-ink-2"
-                    >
-                      <option value="PENDING">Pending</option>
-                      <option value="ACCEPTED">Accepted</option>
-                      <option value="REJECTED">Rejected</option>
-                      <option value="COMPLETED">Completed</option>
-                    </select>
+                    {isManager ? (
+                      <select
+                        value={rec.status}
+                        aria-label="Recommendation status"
+                        onChange={(e) => handleUpdateRecStatus(rec.id, e.target.value as RecommendationStatus)}
+                        className="h-8 rounded-lg border border-rule-strong bg-panel px-2.5 text-xs text-ink-2"
+                      >
+                        <option value="PENDING">Pending</option>
+                        <option value="ACCEPTED">Accepted</option>
+                        <option value="REJECTED">Rejected</option>
+                        <option value="COMPLETED">Completed</option>
+                      </select>
+                    ) : (
+                      <span className="rounded-md border border-rule px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-2">
+                        {rec.status}
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-sm font-semibold text-ink">{rec.title}</h3>
                   <p className="mt-1 text-[13px] text-ink-2">{rec.description}</p>

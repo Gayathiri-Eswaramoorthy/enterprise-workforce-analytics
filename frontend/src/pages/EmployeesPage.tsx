@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import { useAuth } from "../hooks/useAuth";
 import type { EmployeeListItem, Department, JobRole, RiskLevel } from "../types";
 import {
   Search,
@@ -10,6 +11,7 @@ import {
   TriangleAlert,
   ShieldAlert,
   Building2,
+  Briefcase,
   Download,
   Table2,
   LayoutGrid,
@@ -184,6 +186,8 @@ const Kpi: React.FC<{ icon: React.ElementType; tone?: string; label: string; val
 );
 
 export const EmployeesPage: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "HR_ADMIN";
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<JobRole[]>([]);
@@ -414,12 +418,18 @@ export const EmployeesPage: React.FC = () => {
         <div>
           <h1 className="text-[28px] font-semibold leading-tight text-ink">Employees</h1>
           <p className="text-[13.5px] text-ink-2">
-            View your workforce, risk indicators and take action to improve retention.
+            Workforce directory, skill alignments, and statistical attrition risk indicators for retention follow-up.
           </p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary">
-          <Plus className="h-4 w-4" aria-hidden="true" /> Add Employee
-        </button>
+        {isAdmin ? (
+          <button onClick={() => setShowModal(true)} className="btn btn-primary">
+            <Plus className="h-4 w-4" aria-hidden="true" /> Add Employee
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-1.5 text-xs font-semibold text-indigo-700">
+            <Briefcase className="h-3.5 w-3.5" /> HR Manager View (Roster & Risk Analysis)
+          </span>
+        )}
       </div>
 
       {/* Summary */}
