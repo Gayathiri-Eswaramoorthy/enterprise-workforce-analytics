@@ -1,16 +1,38 @@
 """
-Real ML Training Pipeline: Evaluates Random Forest and Gradient Boosting models,
-serializes the best model artifact, and registers metadata into PostgreSQL ModelRegistry.
+ML Training Pipeline for IBM HR Analytics Employee Attrition Benchmark.
+
+Evaluates Random Forest models on:
+  1. The full 30-feature IBM HR Analytics dataset.
+  2. The 8-feature subset derivable from the application's employee database.
+Compares both against a naive baseline classifier, exports the deployable pipeline artifact
+(preprocessing + classifier together), and registers metadata into PostgreSQL ModelRegistry.
+
+PROVENANCE NOTE:
+The IBM HR Analytics Employee Attrition dataset is a publicly available, fictional benchmark dataset
+created by IBM data scientists. It does NOT represent records from a genuine live organization.
+Likewise, existing database employee records are seeded demonstration data.
 """
 
 import os
 import sys
+from datetime import datetime, timezone
 
 import joblib
+import numpy as np
+import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from sklearn.model_selection import train_test_split
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -23,272 +45,361 @@ if root_dir not in sys.path:
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-
 from app.database import SessionLocal
 from app.services.prediction_service import register_model_from_metadata
 
-from ml.datasets.dataset_generator import generate_workforce_dataset
 
-
-def train_and_register_model(dataset_size: int = 5000, version: str = "v1.1.0"):
+def train_and_register_model(version: str = "v2.0.0-ibm"):
     """
-    Execute end-to-end ML model training, evaluation, artifact export, and database registration.
+    Execute end-to-end ML model training, evaluation on held-out test splits,
+    artifact export, and database model registry synchronization.
     """
-    print(f"[ML Pipeline] Generating synthetic training dataset with {dataset_size} records...")
-    df = generate_workforce_dataset(num_samples=dataset_size, random_seed=42)
+    csv_path = os.path.join(ml_dir, "datasets", "WA_Fn-UseC_-HR-Employee-Attrition.csv")
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"IBM HR Analytics dataset not found at expected path: {csv_path}")
 
-    # Feature definitions
-    categorical_features = ["department", "work_mode", "employment_type", "overtime_frequency"]
-    numerical_features = [
-        "grade_level",
-        "tenure_years",
-        "latest_rating",
-        "average_rating",
-        "performance_score",
-        "rating_change",
-        "total_skill_gaps",
-        "mandatory_gaps",
-        "avg_skill_gap",
-        "trainings_enrolled",
-        "trainings_completed",
-        "training_completion_rate",
+    print(f"[ML Pipeline] Loading IBM HR Analytics dataset from: {csv_path}")
+    df = pd.read_csv(csv_path)
+    total_records = len(df)
+    print(f"[ML Pipeline] Loaded {total_records} rows, {df.shape[1]} columns.")
+
+    # 1. Target Definition: Attrition ("Yes" -> 1, "No" -> 0)
+    target_col = "Attrition"
+    y = (df[target_col].astype(str).str.strip().str.lower() == "yes").astype(int)
+    pos_count = int(y.sum())
+    neg_count = total_records - pos_count
+    pos_pct = (pos_count / total_records) * 100.0
+    print(
+        f"[ML Pipeline] Target distribution: No={neg_count} ({100-pos_pct:.2f}%), "
+        f"Yes={pos_count} ({pos_pct:.2f}%). Class ratio: {neg_count/pos_count:.2f}:1"
+    )
+
+    # 2. Exclude identifiers and constants that have zero predictive variance
+    # EmployeeNumber: row-level ID; EmployeeCount: constant 1; Over18: constant 'Y'; StandardHours: constant 80
+    dropped_cols = ["Attrition", "EmployeeNumber", "EmployeeCount", "Over18", "StandardHours"]
+    X_full = df.drop(columns=dropped_cols)
+
+    # Identify categorical and numerical features for the full 30-feature experiment
+    cat_full = [
+        "BusinessTravel",
+        "Department",
+        "EducationField",
+        "Gender",
+        "JobRole",
+        "MaritalStatus",
+        "OverTime",
     ]
-    target_col = "target_at_risk"
+    num_full = [c for c in X_full.columns if c not in cat_full]
 
-    X = df[categorical_features + numerical_features]
-    y = df[target_col]
-
-    # Split: 3-way split (70% train, 15% val, 15% untouched test)
-    # First split off 15% untouched test
-    X_train_val, X_test, y_train_val, y_test = train_test_split(
-        X, y, test_size=0.15, random_state=42, stratify=y
+    # 3. Stratified Train / Test Split (80% train, 20% untouched held-out test)
+    # Using fixed random seed 42 and stratification on y to prevent data leakage and preserve class distribution
+    X_train_full, X_test_full, y_train, y_test = train_test_split(
+        X_full, y, test_size=0.20, random_state=42, stratify=y
     )
-    # Second split: validation set (17.647% of 85% is exactly 15% of 100%)
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train_val, y_train_val, test_size=0.17647, random_state=42, stratify=y_train_val
+    print(
+        f"[ML Pipeline] Stratified split -> Train: {len(X_train_full)} rows, Test: {len(X_test_full)} rows."
     )
 
-    # Preprocessing Pipeline
-    preprocessor = ColumnTransformer(
+    # ---------------------------------------------------------
+    # EXPERIMENT A: Baseline Classifier (Majority Class Dummy)
+    # ---------------------------------------------------------
+    dummy = DummyClassifier(strategy="most_frequent")
+    dummy.fit(X_train_full, y_train)
+    dummy_test_preds = dummy.predict(X_test_full)
+    baseline_metrics = {
+        "accuracy": float(accuracy_score(y_test, dummy_test_preds)),
+        "precision": float(precision_score(y_test, dummy_test_preds, zero_division=0)),
+        "recall": float(recall_score(y_test, dummy_test_preds, zero_division=0)),
+        "f1": float(f1_score(y_test, dummy_test_preds, zero_division=0)),
+        "roc_auc": 0.5,
+        "confusion_matrix": confusion_matrix(y_test, dummy_test_preds).tolist(),
+    }
+    print("\n--- BASELINE CLASSIFIER (Majority Class) ---")
+    print(f"Accuracy:  {baseline_metrics['accuracy']:.4f} (predicts 100% negative)")
+    print(f"Recall:    {baseline_metrics['recall']:.4f}")
+    print(f"F1-Score:  {baseline_metrics['f1']:.4f}")
+    print("Confusion Matrix:\n", confusion_matrix(y_test, dummy_test_preds))
+
+    # ---------------------------------------------------------
+    # EXPERIMENT B: Full IBM Feature Set (30 Features)
+    # ---------------------------------------------------------
+    preprocessor_full = ColumnTransformer(
         transformers=[
-            ("num", StandardScaler(), numerical_features),
+            (
+                "num",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                    ]
+                ),
+                num_full,
+            ),
             (
                 "cat",
-                OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                categorical_features,
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
+                        (
+                            "encoder",
+                            OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+                        ),
+                    ]
+                ),
+                cat_full,
             ),
         ]
     )
 
-    import numpy as np
-    from sklearn.metrics import confusion_matrix, roc_auc_score
-    from sklearn.model_selection import StratifiedKFold
-    from sklearn.utils.class_weight import compute_sample_weight
-
-    # Candidate 1: Random Forest Classifier
-    rf_clf = RandomForestClassifier(
-        n_estimators=100, max_depth=8, class_weight="balanced", random_state=42
+    rf_full_pipeline = Pipeline(
+        [
+            ("preprocessor", preprocessor_full),
+            (
+                "classifier",
+                RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=8,
+                    class_weight="balanced",
+                    random_state=42,
+                ),
+            ),
+        ]
     )
-    rf_pipeline = Pipeline([("preprocessor", preprocessor), ("classifier", rf_clf)])
 
-    # Candidate 2: Gradient Boosting Classifier
-    gb_clf = GradientBoostingClassifier(
-        n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42
-    )
-    gb_pipeline = Pipeline([("preprocessor", preprocessor), ("classifier", gb_clf)])
-
-    # 5-fold Stratified Cross-Validation on X_train (70%)
+    # 5-fold Stratified CV on training set
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-    rf_metrics = {"accuracy": [], "precision": [], "recall": [], "f1": [], "roc_auc": []}
-    gb_metrics = {"accuracy": [], "precision": [], "recall": [], "f1": [], "roc_auc": []}
-
-    X_train_reset = X_train.reset_index(drop=True)
+    cv_full_scores = {"accuracy": [], "precision": [], "recall": [], "f1": [], "roc_auc": []}
+    X_train_full_reset = X_train_full.reset_index(drop=True)
     y_train_reset = y_train.reset_index(drop=True)
 
-    for train_idx, val_idx in skf.split(X_train_reset, y_train_reset):
-        X_fold_train, X_fold_val = X_train_reset.iloc[train_idx], X_train_reset.iloc[val_idx]
-        y_fold_train, y_fold_val = y_train_reset.iloc[train_idx], y_train_reset.iloc[val_idx]
-
-        # Fit Random Forest
-        rf_pipeline.fit(X_fold_train, y_fold_train)
-        rf_preds = rf_pipeline.predict(X_fold_val)
-        rf_probs = rf_pipeline.predict_proba(X_fold_val)[:, 1]
-
-        rf_metrics["accuracy"].append(accuracy_score(y_fold_val, rf_preds))
-        rf_metrics["precision"].append(precision_score(y_fold_val, rf_preds, zero_division=0))
-        rf_metrics["recall"].append(recall_score(y_fold_val, rf_preds, zero_division=0))
-        rf_metrics["f1"].append(f1_score(y_fold_val, rf_preds, zero_division=0))
-        rf_metrics["roc_auc"].append(roc_auc_score(y_fold_val, rf_probs))
-
-        # Fit Gradient Boosting with sample weights
-        sw = compute_sample_weight(class_weight="balanced", y=y_fold_train)
-        gb_pipeline.fit(X_fold_train, y_fold_train, classifier__sample_weight=sw)
-        gb_preds = gb_pipeline.predict(X_fold_val)
-        gb_probs = gb_pipeline.predict_proba(X_fold_val)[:, 1]
-
-        gb_metrics["accuracy"].append(accuracy_score(y_fold_val, gb_preds))
-        gb_metrics["precision"].append(precision_score(y_fold_val, gb_preds, zero_division=0))
-        gb_metrics["recall"].append(recall_score(y_fold_val, gb_preds, zero_division=0))
-        gb_metrics["f1"].append(f1_score(y_fold_val, gb_preds, zero_division=0))
-        gb_metrics["roc_auc"].append(roc_auc_score(y_fold_val, gb_probs))
-
-    rf_mean_f1 = np.mean(rf_metrics["f1"])
-    gb_mean_f1 = np.mean(gb_metrics["f1"])
-
-    print(
-        f"[CV Eval] Random Forest -> Mean F1: {rf_mean_f1:.4f}, Accuracy: {np.mean(rf_metrics['accuracy']):.4f}, Precision: {np.mean(rf_metrics['precision']):.4f}, Recall: {np.mean(rf_metrics['recall']):.4f}, ROC-AUC: {np.mean(rf_metrics['roc_auc']):.4f}"
-    )
-    print(
-        f"[CV Eval] Gradient Boosting -> Mean F1: {gb_mean_f1:.4f}, Accuracy: {np.mean(gb_metrics['accuracy']):.4f}, Precision: {np.mean(gb_metrics['precision']):.4f}, Recall: {np.mean(gb_metrics['recall']):.4f}, ROC-AUC: {np.mean(gb_metrics['roc_auc']):.4f}"
-    )
-
-    # Model Selection based on CV F1 score
-    if gb_mean_f1 >= rf_mean_f1:
-        best_pipeline = gb_pipeline
-        best_algorithm = "Gradient Boosting Classifier"
-        # Train best model on training set (70%) to get validation scores
-        sw_train = compute_sample_weight(class_weight="balanced", y=y_train)
-        best_pipeline.fit(X_train, y_train, classifier__sample_weight=sw_train)
-
-        # Validation evaluation
-        val_preds = best_pipeline.predict(X_val)
-        val_probs = best_pipeline.predict_proba(X_val)[:, 1]
-
-        # Train final model on train_val (85%) for test evaluation
-        final_pipeline = Pipeline(
-            [
-                ("preprocessor", preprocessor),
-                (
-                    "classifier",
-                    GradientBoostingClassifier(
-                        n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42
-                    ),
-                ),
-            ]
+    for train_idx, val_idx in skf.split(X_train_full_reset, y_train_reset):
+        X_fold_tr, X_fold_val = (
+            X_train_full_reset.iloc[train_idx],
+            X_train_full_reset.iloc[val_idx],
         )
-        sw_train_val = compute_sample_weight(class_weight="balanced", y=y_train_val)
-        final_pipeline.fit(X_train_val, y_train_val, classifier__sample_weight=sw_train_val)
-    else:
-        best_pipeline = rf_pipeline
-        best_algorithm = "Random Forest Classifier"
-        best_pipeline.fit(X_train, y_train)
+        y_fold_tr, y_fold_val = y_train_reset.iloc[train_idx], y_train_reset.iloc[val_idx]
 
-        # Validation evaluation
-        val_preds = best_pipeline.predict(X_val)
-        val_probs = best_pipeline.predict_proba(X_val)[:, 1]
+        rf_full_pipeline.fit(X_fold_tr, y_fold_tr)
+        f_preds = rf_full_pipeline.predict(X_fold_val)
+        f_probs = rf_full_pipeline.predict_proba(X_fold_val)[:, 1]
 
-        # Train final model on train_val (85%) for test evaluation
-        final_pipeline = Pipeline(
-            [
-                ("preprocessor", preprocessor),
-                (
-                    "classifier",
-                    RandomForestClassifier(
-                        n_estimators=100, max_depth=8, class_weight="balanced", random_state=42
-                    ),
-                ),
-            ]
-        )
-        final_pipeline.fit(X_train_val, y_train_val)
+        cv_full_scores["accuracy"].append(accuracy_score(y_fold_val, f_preds))
+        cv_full_scores["precision"].append(precision_score(y_fold_val, f_preds, zero_division=0))
+        cv_full_scores["recall"].append(recall_score(y_fold_val, f_preds, zero_division=0))
+        cv_full_scores["f1"].append(f1_score(y_fold_val, f_preds, zero_division=0))
+        cv_full_scores["roc_auc"].append(roc_auc_score(y_fold_val, f_probs))
 
-    val_acc = accuracy_score(y_val, val_preds)
-    val_prec = precision_score(y_val, val_preds, zero_division=0)
-    val_rec = recall_score(y_val, val_preds, zero_division=0)
-    val_f1 = f1_score(y_val, val_preds, zero_division=0)
-    val_roc_auc = roc_auc_score(y_val, val_probs)
+    # Fit on all 80% train and evaluate on 20% held-out test
+    rf_full_pipeline.fit(X_train_full, y_train)
+    full_test_preds = rf_full_pipeline.predict(X_test_full)
+    full_test_probs = rf_full_pipeline.predict_proba(X_test_full)[:, 1]
 
+    full_experiment_metrics = {
+        "cv_metrics": {k: float(np.mean(v)) for k, v in cv_full_scores.items()},
+        "test_metrics": {
+            "accuracy": float(accuracy_score(y_test, full_test_preds)),
+            "precision": float(precision_score(y_test, full_test_preds, zero_division=0)),
+            "recall": float(recall_score(y_test, full_test_preds, zero_division=0)),
+            "f1": float(f1_score(y_test, full_test_preds, zero_division=0)),
+            "roc_auc": float(roc_auc_score(y_test, full_test_probs)),
+            "confusion_matrix": confusion_matrix(y_test, full_test_preds).tolist(),
+        },
+    }
+
+    print("\n--- FULL 30-FEATURE MODEL (Benchmark Experiment) ---")
     print(
-        f"[Validation Eval] Selected Model ({best_algorithm}) -> F1: {val_f1:.4f}, Accuracy: {val_acc:.4f}, Precision: {val_prec:.4f}, Recall: {val_rec:.4f}, ROC-AUC: {val_roc_auc:.4f}"
+        f"CV 5-Fold -> Acc: {full_experiment_metrics['cv_metrics']['accuracy']:.4f}, "
+        f"F1: {full_experiment_metrics['cv_metrics']['f1']:.4f}, "
+        f"ROC-AUC: {full_experiment_metrics['cv_metrics']['roc_auc']:.4f}"
+    )
+    print(
+        f"Held-out Test -> Acc: {full_experiment_metrics['test_metrics']['accuracy']:.4f}, "
+        f"Precision: {full_experiment_metrics['test_metrics']['precision']:.4f}, "
+        f"Recall: {full_experiment_metrics['test_metrics']['recall']:.4f}, "
+        f"F1: {full_experiment_metrics['test_metrics']['f1']:.4f}, "
+        f"ROC-AUC: {full_experiment_metrics['test_metrics']['roc_auc']:.4f}"
+    )
+    print("Confusion Matrix:\n", confusion_matrix(y_test, full_test_preds))
+
+    # ---------------------------------------------------------
+    # EXPERIMENT C: Application-Derived Feature Set (8 Features)
+    # Features derivable from database without fabricating unavailable fields:
+    #   Categorical: Department, Gender, OverTime
+    #   Numerical: Age, JobLevel, YearsAtCompany, PerformanceRating, TrainingTimesLastYear
+    # ---------------------------------------------------------
+    cat_8 = ["Department", "Gender", "OverTime"]
+    num_8 = ["Age", "JobLevel", "YearsAtCompany", "PerformanceRating", "TrainingTimesLastYear"]
+
+    X_train_8 = X_train_full[cat_8 + num_8]
+    X_test_8 = X_test_full[cat_8 + num_8]
+
+    preprocessor_8 = ColumnTransformer(
+        transformers=[
+            (
+                "num",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                    ]
+                ),
+                num_8,
+            ),
+            (
+                "cat",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
+                        (
+                            "encoder",
+                            OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+                        ),
+                    ]
+                ),
+                cat_8,
+            ),
+        ]
     )
 
-    # Evaluate final selected model ONCE on the untouched 15% test set (X_test, y_test)
-    test_preds = final_pipeline.predict(X_test)
-    test_probs = final_pipeline.predict_proba(X_test)[:, 1]
+    rf_8_pipeline = Pipeline(
+        [
+            ("preprocessor", preprocessor_8),
+            (
+                "classifier",
+                RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=6,
+                    class_weight="balanced",
+                    random_state=42,
+                ),
+            ),
+        ]
+    )
 
-    test_acc = accuracy_score(y_test, test_preds)
-    test_prec = precision_score(y_test, test_preds, zero_division=0)
-    test_rec = recall_score(y_test, test_preds, zero_division=0)
-    test_f1 = f1_score(y_test, test_preds, zero_division=0)
-    test_roc_auc = roc_auc_score(y_test, test_probs)
-    test_cm = confusion_matrix(y_test, test_preds)
+    # 5-fold Stratified CV on 8-feature training data
+    cv_8_scores = {"accuracy": [], "precision": [], "recall": [], "f1": [], "roc_auc": []}
+    X_train_8_reset = X_train_8.reset_index(drop=True)
 
-    print("\n=============================================")
-    print("FINAL TEST METRICS (ON UNTOUCHED 15% TEST SET):")
-    print(f"Accuracy:  {test_acc:.4f}")
-    print(f"Precision: {test_prec:.4f}")
-    print(f"Recall:    {test_rec:.4f}")
-    print(f"F1 Score:  {test_f1:.4f}")
-    print(f"ROC-AUC:   {test_roc_auc:.4f}")
-    print("Confusion Matrix:")
-    print(test_cm)
-    print("=============================================\n")
+    for train_idx, val_idx in skf.split(X_train_8_reset, y_train_reset):
+        X_fold_tr, X_fold_val = X_train_8_reset.iloc[train_idx], X_train_8_reset.iloc[val_idx]
+        y_fold_tr, y_fold_val = y_train_reset.iloc[train_idx], y_train_reset.iloc[val_idx]
 
-    # Serialize Artifact (save the final pipeline trained on 85%)
+        rf_8_pipeline.fit(X_fold_tr, y_fold_tr)
+        preds_8 = rf_8_pipeline.predict(X_fold_val)
+        probs_8 = rf_8_pipeline.predict_proba(X_fold_val)[:, 1]
+
+        cv_8_scores["accuracy"].append(accuracy_score(y_fold_val, preds_8))
+        cv_8_scores["precision"].append(precision_score(y_fold_val, preds_8, zero_division=0))
+        cv_8_scores["recall"].append(recall_score(y_fold_val, preds_8, zero_division=0))
+        cv_8_scores["f1"].append(f1_score(y_fold_val, preds_8, zero_division=0))
+        cv_8_scores["roc_auc"].append(roc_auc_score(y_fold_val, probs_8))
+
+    # Fit 8-feature pipeline on full 80% train and evaluate on 20% test
+    rf_8_pipeline.fit(X_train_8, y_train)
+    test_preds_8 = rf_8_pipeline.predict(X_test_8)
+    test_probs_8 = rf_8_pipeline.predict_proba(X_test_8)[:, 1]
+
+    test_acc_8 = accuracy_score(y_test, test_preds_8)
+    test_prec_8 = precision_score(y_test, test_preds_8, zero_division=0)
+    test_rec_8 = recall_score(y_test, test_preds_8, zero_division=0)
+    test_f1_8 = f1_score(y_test, test_preds_8, zero_division=0)
+    test_roc_auc_8 = roc_auc_score(y_test, test_probs_8)
+    test_cm_8 = confusion_matrix(y_test, test_preds_8)
+
+    print("\n--- DEPLOYABLE 8-FEATURE MODEL (Application Database Compatible) ---")
+    print(
+        f"CV 5-Fold -> Acc: {np.mean(cv_8_scores['accuracy']):.4f}, "
+        f"F1: {np.mean(cv_8_scores['f1']):.4f}, "
+        f"ROC-AUC: {np.mean(cv_8_scores['roc_auc']):.4f}"
+    )
+    print("Held-out Test (20%):")
+    print(f"Accuracy:  {test_acc_8:.4f}")
+    print(f"Precision: {test_prec_8:.4f}")
+    print(
+        f"Recall:    {test_rec_8:.4f} (detects {test_cm_8[1, 1]}/{pos_count // 5} at-risk records)"
+    )
+    print(f"F1-Score:  {test_f1_8:.4f}")
+    print(f"ROC-AUC:   {test_roc_auc_8:.4f}")
+    print("Confusion Matrix:\n", test_cm_8)
+
+    # 4. Feature Importances for 8-feature model
+    cat_transformed_names = (
+        rf_8_pipeline.named_steps["preprocessor"]
+        .named_transformers_["cat"]
+        .named_steps["encoder"]
+        .get_feature_names_out(cat_8)
+        .tolist()
+    )
+    all_feature_names = num_8 + cat_transformed_names
+    importances = rf_8_pipeline.named_steps["classifier"].feature_importances_
+    feature_importances_dict = {
+        name: float(round(imp, 4))
+        for name, imp in sorted(
+            zip(all_feature_names, importances), key=lambda x: x[1], reverse=True
+        )
+    }
+
+    # 5. Serialize Artifacts
+    # Save the 8-feature pipeline (preprocessor + model together) as the serving artifact
     artifacts_dir = os.path.join(ml_dir, "artifacts")
     os.makedirs(artifacts_dir, exist_ok=True)
     model_path = os.path.join(artifacts_dir, "workforce_risk_model.joblib")
-    joblib.dump(final_pipeline, model_path)
-    print(f"[ML Pipeline] Model artifact serialized to: {model_path}")
+    joblib.dump(rf_8_pipeline, model_path)
+    print(f"\n[ML Pipeline] Trained 8-feature pipeline serialized to: {model_path}")
 
-    # Save feature metadata with the artifact for explainability
+    # Build comprehensive metadata document
     meta_path = os.path.join(artifacts_dir, "model_metadata.joblib")
     metadata = {
         "version": version,
-        "algorithm": best_algorithm,
-        "categorical_features": categorical_features,
-        "numerical_features": numerical_features,
+        "algorithm": "Random Forest Classifier",
+        "dataset_name": "IBM HR Analytics Employee Attrition (Fictional Benchmark)",
+        "dataset_size": total_records,
+        "training_date": datetime.now(timezone.utc).isoformat(),
         "random_state": 42,
-        "dataset_size": dataset_size,
-        "cross_validation_folds": 5,
-        "cv_metrics": {
-            "rf": {k: float(np.mean(v)) for k, v in rf_metrics.items()},
-            "gb": {k: float(np.mean(v)) for k, v in gb_metrics.items()},
+        "target": "Attrition (Yes=1, No=0)",
+        "feature_schema": {
+            "categorical_features": cat_8,
+            "numerical_features": num_8,
+            "all_features": cat_8 + num_8,
         },
-        "validation_metrics": {
-            "accuracy": float(val_acc),
-            "precision": float(val_prec),
-            "recall": float(val_rec),
-            "f1": float(val_f1),
-            "roc_auc": float(val_roc_auc),
-        },
+        "baseline_metrics": baseline_metrics,
+        "full_30_feature_experiment": full_experiment_metrics,
+        "cv_metrics": {k: float(np.mean(v)) for k, v in cv_8_scores.items()},
         "final_test_metrics": {
-            "accuracy": float(test_acc),
-            "precision": float(test_prec),
-            "recall": float(test_rec),
-            "f1": float(test_f1),
-            "roc_auc": float(test_roc_auc),
-            "confusion_matrix": test_cm.tolist(),
+            "accuracy": float(test_acc_8),
+            "precision": float(test_prec_8),
+            "recall": float(test_rec_8),
+            "f1": float(test_f1_8),
+            "roc_auc": float(test_roc_auc_8),
+            "confusion_matrix": test_cm_8.tolist(),
         },
-        "feature_importances": (
-            dict(
-                zip(
-                    numerical_features,
-                    final_pipeline.named_steps["classifier"].feature_importances_[
-                        : len(numerical_features)
-                    ],
-                )
-            )
-            if hasattr(final_pipeline.named_steps["classifier"], "feature_importances_")
-            else {}
-        ),
+        "feature_importances": feature_importances_dict,
+        "assumptions_and_provenance": {
+            "dataset_nature": "Publicly available fictional HR benchmark dataset from IBM.",
+            "application_records": "Seeded demonstrative records for enterprise analytics evaluation.",
+            "feature_mapping_notes": (
+                "Department mapped to standard R&D / Sales / HR categories. "
+                "JobLevel derived from JobRole grade_level (1..10 scale mapped to 1..5 scale). "
+                "OverTime derived from OvertimeFrequency (OCCASIONAL/FREQUENT -> 'Yes', NONE -> 'No'). "
+                "PerformanceRating uses unconstrained review rating, with pipeline median imputation if reviews are absent."
+            ),
+        },
     }
     joblib.dump(metadata, meta_path)
+    print(f"[ML Pipeline] Model metadata serialized to: {meta_path}")
 
-    # Register in PostgreSQL ModelRegistry. If the DB is unreachable now, the backend
-    # registers the artifact from this metadata file on its first prediction instead.
+    # 6. Register in PostgreSQL ModelRegistry table
     try:
         with SessionLocal() as db:
             register_model_from_metadata(db, metadata, model_path)
             print(f"[ML Pipeline] Successfully registered model {version} in ModelRegistry table.")
     except Exception as e:
-        print(f"[ML Pipeline] Warning: Could not register model in DB: {e}")
+        print(f"[ML Pipeline] Warning: Could not register model in DB during training: {e}")
 
     return {
         "version": version,
-        "algorithm": best_algorithm,
-        "accuracy": test_acc,
-        "f1": test_f1,
+        "algorithm": "Random Forest Classifier",
+        "test_metrics": metadata["final_test_metrics"],
         "model_path": model_path,
     }
 
