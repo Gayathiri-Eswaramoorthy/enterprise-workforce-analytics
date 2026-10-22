@@ -22,6 +22,9 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
+    from app.models.employee import Employee
+    from app.models.lesson_completion import LessonCompletion
+    from app.models.quiz_attempt import QuizAttempt
     from app.models.training_course import TrainingCourse
 
 
@@ -91,11 +94,22 @@ class TrainingEnrollment(BaseModel):
     )
 
     # Relationships
-    employee: Mapped["Employee"] = relationship(  # noqa: F821
+    employee: Mapped["Employee"] = relationship(
         "Employee",
         back_populates="training_enrollments",
     )
     training_course: Mapped["TrainingCourse"] = relationship(
         "TrainingCourse",
         back_populates="enrollments",
+    )
+    lesson_completions: Mapped[list["LessonCompletion"]] = relationship(
+        "LessonCompletion",
+        back_populates="enrollment",
+        cascade="all, delete-orphan",
+    )
+    quiz_attempts: Mapped[list["QuizAttempt"]] = relationship(
+        "QuizAttempt",
+        back_populates="enrollment",
+        cascade="all, delete-orphan",
+        order_by="QuizAttempt.attempt_number",
     )

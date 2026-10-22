@@ -82,6 +82,8 @@ class EmployeeListItem(BaseModel):
     manager_name: str | None = None
     latest_risk_level: str | None = None
     latest_risk_score: float | None = None
+    latest_prediction_reason: str | None = None
+    open_recommendations_count: int = 0
     is_deleted: bool = False
 
     model_config = ConfigDict(from_attributes=True)

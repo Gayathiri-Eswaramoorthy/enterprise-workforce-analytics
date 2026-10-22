@@ -18,7 +18,9 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
+    from app.models.employee import Employee
     from app.models.prediction_history import PredictionHistory
+    from app.models.retention_intervention import RetentionIntervention
 
 
 class Recommendation(BaseModel):
@@ -83,11 +85,16 @@ class Recommendation(BaseModel):
     )
 
     # Relationships
-    employee: Mapped["Employee"] = relationship(  # noqa: F821
+    employee: Mapped["Employee"] = relationship(
         "Employee",
         back_populates="recommendations",
     )
     prediction_history: Mapped[Optional["PredictionHistory"]] = relationship(
         "PredictionHistory",
         back_populates="recommendations",
+    )
+    retention_interventions: Mapped[list["RetentionIntervention"]] = relationship(
+        "RetentionIntervention",
+        back_populates="recommendation",
+        passive_deletes=True,
     )

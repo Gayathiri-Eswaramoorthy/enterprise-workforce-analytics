@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from app.models.employee_document import EmployeeDocument
     from app.models.notification import Notification
     from app.models.performance_review import PerformanceReview
+    from app.models.retention_intervention import RetentionIntervention
+    from app.models.skill_assessment import SkillAssessment
 
 
 class User(BaseModel):
@@ -108,4 +110,12 @@ class User(BaseModel):
         "AuditLog",
         back_populates="user",
         passive_deletes=True,
+    )
+    evaluated_assessments: Mapped[list["SkillAssessment"]] = relationship(
+        "SkillAssessment",
+        back_populates="evaluator",
+    )
+    managed_interventions: Mapped[list["RetentionIntervention"]] = relationship(
+        "RetentionIntervention",
+        back_populates="hr_user",
     )

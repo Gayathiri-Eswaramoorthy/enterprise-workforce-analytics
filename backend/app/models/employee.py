@@ -23,10 +23,15 @@ if TYPE_CHECKING:
     from app.models.department import Department
     from app.models.employee_document import EmployeeDocument
     from app.models.employee_skill import EmployeeSkill
+    from app.models.employee_request import EmployeeRequest
     from app.models.job_role import JobRole
+    from app.models.lesson_completion import LessonCompletion
     from app.models.performance_review import PerformanceReview
     from app.models.prediction_history import PredictionHistory
+    from app.models.quiz_attempt import QuizAttempt
     from app.models.recommendation import Recommendation
+    from app.models.retention_intervention import RetentionIntervention
+    from app.models.skill_assessment import SkillAssessment
     from app.models.training_enrollment import TrainingEnrollment
     from app.models.user import User
 
@@ -224,6 +229,31 @@ class Employee(BaseModel):
     )
     recommendations: Mapped[list["Recommendation"]] = relationship(
         "Recommendation",
+        back_populates="employee",
+        passive_deletes=True,
+    )
+    lesson_completions: Mapped[list["LessonCompletion"]] = relationship(
+        "LessonCompletion",
+        back_populates="employee",
+        passive_deletes=True,
+    )
+    quiz_attempts: Mapped[list["QuizAttempt"]] = relationship(
+        "QuizAttempt",
+        back_populates="employee",
+        passive_deletes=True,
+    )
+    skill_assessments: Mapped[list["SkillAssessment"]] = relationship(
+        "SkillAssessment",
+        back_populates="employee",
+        passive_deletes=True,
+    )
+    retention_interventions: Mapped[list["RetentionIntervention"]] = relationship(
+        "RetentionIntervention",
+        back_populates="employee",
+        passive_deletes=True,
+    )
+    discussion_requests: Mapped[list["EmployeeRequest"]] = relationship(
+        "EmployeeRequest",
         back_populates="employee",
         passive_deletes=True,
     )

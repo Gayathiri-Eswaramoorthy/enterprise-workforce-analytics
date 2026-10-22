@@ -3,7 +3,7 @@ TrainingCourse database model.
 """
 
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from app.database import BaseModel, DifficultyLevel, TrainingMode
 from sqlalchemy import Enum as SAEnum
@@ -11,6 +11,9 @@ from sqlalchemy import Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
+    from app.models.course_lesson import CourseLesson
+    from app.models.course_quiz import CourseQuiz
+    from app.models.skill_assessment import SkillAssessment
     from app.models.training_enrollment import TrainingEnrollment
     from app.models.training_skill import TrainingSkill
 
@@ -75,4 +78,20 @@ class TrainingCourse(BaseModel):
         "TrainingSkill",
         back_populates="training_course",
         passive_deletes=True,
+    )
+    lessons: Mapped[list["CourseLesson"]] = relationship(
+        "CourseLesson",
+        back_populates="training_course",
+        cascade="all, delete-orphan",
+        order_by="CourseLesson.order_index",
+    )
+    quiz: Mapped[Optional["CourseQuiz"]] = relationship(
+        "CourseQuiz",
+        back_populates="training_course",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    skill_assessments: Mapped[list["SkillAssessment"]] = relationship(
+        "SkillAssessment",
+        back_populates="training_course",
     )

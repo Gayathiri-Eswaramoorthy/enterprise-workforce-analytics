@@ -6,12 +6,14 @@ Exposes database session, engines, bases, and enums.
 from app.database.base import Base
 from app.database.base_model import BaseModel
 from app.database.enums import (
+    AssessmentType,
     DifficultyLevel,
     DocumentType,
     EmploymentStatus,
     EmploymentType,
     EnrollmentStatus,
     Gender,
+    InterventionStatus,
     NotificationType,
     OvertimeFrequency,
     PredictionStatus,
@@ -19,6 +21,7 @@ from app.database.enums import (
     PriorityLevel,
     RecommendationStatus,
     RecommendationType,
+    RetentionOutcome,
     ReviewCycle,
     RiskLevel,
     TrainingMode,
@@ -34,6 +37,7 @@ from app.database.session import (
 )
 
 __all__ = [
+    "AssessmentType",
     "Base",
     "BaseModel",
     "DifficultyLevel",
@@ -42,6 +46,7 @@ __all__ = [
     "EmploymentType",
     "EnrollmentStatus",
     "Gender",
+    "InterventionStatus",
     "NotificationType",
     "OvertimeFrequency",
     "PredictionStatus",
@@ -49,6 +54,7 @@ __all__ = [
     "PriorityLevel",
     "RecommendationStatus",
     "RecommendationType",
+    "RetentionOutcome",
     "ReviewCycle",
     "RiskLevel",
     "SessionLocal",

@@ -57,6 +57,7 @@ class TrainingCourseResponse(TrainingCourseBase):
     updated_at: datetime
     enrolled_count: int | None = None
     completed_count: int | None = None
+    lessons_count: int = 0
     training_skills: list[TrainingSkillResponse] = []
 
     model_config = ConfigDict(from_attributes=True)

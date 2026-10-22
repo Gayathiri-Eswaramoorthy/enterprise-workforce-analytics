@@ -209,3 +209,34 @@ class OvertimeFrequency(str, Enum):
     NONE = "NONE"
     OCCASIONAL = "OCCASIONAL"
     FREQUENT = "FREQUENT"
+
+
+class AssessmentType(str, Enum):
+    """
+    Defines whether a skill assessment was taken as a pre-training baseline or post-training.
+    """
+
+    BASELINE = "BASELINE"
+    POST_TRAINING = "POST_TRAINING"
+
+
+class InterventionStatus(str, Enum):
+    """
+    Defines the lifecycle status of an HR retention intervention.
+    """
+
+    OFFERED = "OFFERED"
+    ACCEPTED = "ACCEPTED"
+    DECLINED = "DECLINED"
+    COMPLETED = "COMPLETED"
+
+
+class RetentionOutcome(str, Enum):
+    """
+    Defines documented retention follow-up outcome for an employee.
+    """
+
+    EMPLOYED = "EMPLOYED"
+    DEPARTED = "DEPARTED"
+    PENDING = "PENDING"
+

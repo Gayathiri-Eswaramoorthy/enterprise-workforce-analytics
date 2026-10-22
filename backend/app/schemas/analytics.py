@@ -75,3 +75,35 @@ class DashboardMetrics(BaseModel):
     top_skill_gaps: list[TopSkillGapItem]
     recent_high_risk_alerts: list[dict] = []
     top_recommendations: list[dict] = []
+
+
+class AuditActionCount(BaseModel):
+    action: str
+    count: int
+
+
+class RecentAuditActivity(BaseModel):
+    id: UUID
+    user_email: str | None = None
+    action: str
+    entity_name: str
+    description: str
+    ip_address: str | None = None
+    created_at: str
+
+
+class SystemOverviewMetrics(BaseModel):
+    total_users: int
+    active_users: int
+    inactive_users: int
+    users_by_role: dict[str, int]
+    total_employees: int
+    active_employees: int
+    total_departments: int
+    total_job_roles: int
+    total_audit_logs: int
+    recent_audit_logs: list[RecentAuditActivity] = []
+    audit_action_counts: list[AuditActionCount] = []
+    active_model_version: str | None = None
+    system_status: str = "HEALTHY"
+

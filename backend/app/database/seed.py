@@ -26,6 +26,7 @@ from app.database import (
     EnrollmentStatus,
     Gender,
     OvertimeFrequency,
+    PredictionType,
     ReviewCycle,
     SessionLocal,
     TrainingMode,
@@ -37,11 +38,8 @@ from app.models import (
     Employee,
     EmployeeSkill,
     JobRole,
-    ModelRegistry,
-    Notification,
     PerformanceReview,
     PredictionHistory,
-    Recommendation,
     RoleSkill,
     Skill,
     TrainingCourse,
@@ -50,6 +48,8 @@ from app.models import (
     User,
 )
 from app.security import hash_password
+
+from ml.predict import predict_employee_risk
 
 # Employee record owned by the demo EMPLOYEE login (demo@workforce.local)
 DEMO_EMPLOYEE_CODE = "EMP-ENG-018"
@@ -461,23 +461,567 @@ def generate_50_employees():
     return employees
 
 
+def generate_150_additional_employees():
+    import random
+    from datetime import date
+    from decimal import Decimal
+
+    rng = random.Random(2026)
+
+    dept_targets_150 = {
+        "ENG": 38,
+        "PROD": 16,
+        "SALES": 23,
+        "MKT": 14,
+        "HR": 11,
+        "FIN": 18,
+        "OPS": 18,
+        "LEGAL": 12,
+    }
+
+    code_start_index = {
+        "ENG": 23,
+        "PROD": 9,
+        "SALES": 8,
+        "MKT": 9,
+        "HR": 6,
+        "FIN": 1,
+        "OPS": 1,
+        "LEGAL": 1,
+    }
+
+    roles_by_dept = {
+        "ENG": ["SR-SWE", "LEAD-SWE", "ML-ENG", "FE-ENG", "QA-ENG", "DEVOPS-ENG"],
+        "PROD": ["SR-PM", "UX-DES"],
+        "SALES": ["ENT-AE", "SDR"],
+        "MKT": ["MKT-LEAD"],
+        "HR": ["HR-BP", "TALENT-ACQ"],
+        "FIN": ["FIN-MGR", "SR-FIN-ANALYST", "FIN-ANALYST"],
+        "OPS": ["OPS-DIR", "OPS-LEAD", "SYS-ADMIN"],
+        "LEGAL": ["CORP-COUNSEL", "COMPLIANCE-SPEC"],
+    }
+
+    role_skills_map = {
+        "SR-SWE": [
+            ("SK-PY", 4, True),
+            ("SK-SQL", 4, True),
+            ("SK-DOCKER", 3, True),
+            ("SK-CLOUD", 3, False),
+            ("SK-AGILE", 3, False),
+        ],
+        "LEAD-SWE": [
+            ("SK-PY", 5, True),
+            ("SK-CLOUD", 5, True),
+            ("SK-SQL", 5, True),
+            ("SK-LEAD", 4, True),
+            ("SK-SEC", 4, True),
+        ],
+        "ML-ENG": [
+            ("SK-PY", 5, True),
+            ("SK-ML", 5, True),
+            ("SK-SQL", 4, True),
+            ("SK-CLOUD", 4, False),
+        ],
+        "FE-ENG": [("SK-REACT", 4, True), ("SK-COMM", 3, False), ("SK-AGILE", 3, True)],
+        "QA-ENG": [("SK-PY", 3, True), ("SK-DOCKER", 3, False), ("SK-AGILE", 3, True)],
+        "DEVOPS-ENG": [
+            ("SK-DOCKER", 5, True),
+            ("SK-CLOUD", 5, True),
+            ("SK-SEC", 4, True),
+            ("SK-PY", 3, False),
+        ],
+        "SR-PM": [
+            ("SK-PRODMG", 5, True),
+            ("SK-BI", 4, True),
+            ("SK-COMM", 5, True),
+            ("SK-AGILE", 4, True),
+        ],
+        "UX-DES": [("SK-PRODMG", 4, True), ("SK-COMM", 4, True), ("SK-AGILE", 3, True)],
+        "HR-BP": [
+            ("SK-TALENT", 4, True),
+            ("SK-COMM", 4, True),
+            ("SK-LEAD", 3, False),
+            ("SK-BI", 3, False),
+        ],
+        "TALENT-ACQ": [("SK-TALENT", 4, True), ("SK-COMM", 4, True), ("SK-AGILE", 2, False)],
+        "ENT-AE": [("SK-NEGOT", 5, True), ("SK-COMM", 5, True), ("SK-LEAD", 3, False)],
+        "SDR": [("SK-COMM", 4, True), ("SK-NEGOT", 3, True), ("SK-BI", 2, False)],
+        "MKT-LEAD": [("SK-SEO", 5, True), ("SK-BI", 4, True), ("SK-COMM", 4, True)],
+        "FIN-MGR": [
+            ("SK-FIN", 5, True),
+            ("SK-SQL", 4, True),
+            ("SK-LEAD", 4, True),
+            ("SK-COMM", 4, True),
+        ],
+        "SR-FIN-ANALYST": [("SK-FIN", 4, True), ("SK-BI", 4, True), ("SK-SQL", 4, True)],
+        "FIN-ANALYST": [("SK-FIN", 3, True), ("SK-BI", 3, True), ("SK-COMM", 3, False)],
+        "OPS-DIR": [
+            ("SK-LEAD", 5, True),
+            ("SK-COMM", 5, True),
+            ("SK-AGILE", 4, True),
+            ("SK-SYSADMIN", 3, False),
+        ],
+        "OPS-LEAD": [("SK-AGILE", 4, True), ("SK-COMM", 4, True), ("SK-BI", 3, True)],
+        "SYS-ADMIN": [("SK-SYSADMIN", 4, True), ("SK-SEC", 3, True), ("SK-CLOUD", 3, True)],
+        "CORP-COUNSEL": [
+            ("SK-COMPL", 5, True),
+            ("SK-NEGOT", 4, True),
+            ("SK-COMM", 5, True),
+            ("SK-LEAD", 3, False),
+        ],
+        "COMPLIANCE-SPEC": [
+            ("SK-COMPL", 4, True),
+            ("SK-SEC", 3, True),
+            ("SK-COMM", 3, True),
+        ],
+    }
+
+    course_by_skill = {
+        "SK-PY": "TR-PY-ADV",
+        "SK-CLOUD": "TR-GCP-ARCH",
+        "SK-ML": "TR-MLOPS",
+        "SK-REACT": "TR-REACT-TS",
+        "SK-BI": "TR-DATA-BI",
+        "SK-LEAD": "TR-EXEC-LEAD",
+        "SK-SEC": "TR-SEC-IAM",
+        "SK-PRODMG": "TR-PROD-STRAT",
+        "SK-FIN": "TR-FIN-MODEL",
+        "SK-COMPL": "TR-COMPL-GOV",
+        "SK-SYSADMIN": "TR-SYS-INFRA",
+        "SK-DOCKER": "TR-GCP-ARCH",
+        "SK-SQL": "TR-DATA-BI",
+        "SK-COMM": "TR-EXEC-LEAD",
+        "SK-AGILE": "TR-PROD-STRAT",
+        "SK-TALENT": "TR-EXEC-LEAD",
+        "SK-NEGOT": "TR-EXEC-LEAD",
+        "SK-SEO": "TR-DATA-BI",
+    }
+
+    first_names_male = [
+        "Alexander",
+        "Benjamin",
+        "Lucas",
+        "Henry",
+        "Sebastian",
+        "Jack",
+        "Owen",
+        "Samuel",
+        "Leo",
+        "Nathan",
+        "Julian",
+        "Gabriel",
+        "Carter",
+        "Isaac",
+        "Jayden",
+        "Luke",
+        "Anthony",
+        "Dylan",
+        "Wyatt",
+        "Andrew",
+        "Joshua",
+        "Christopher",
+        "Grayson",
+        "Jaxon",
+        "Julian",
+        "Levi",
+        "Aaron",
+        "Eli",
+        "Landon",
+        "Jonathan",
+        "Nolan",
+        "Hunter",
+        "Cameron",
+        "Connor",
+        "Adrian",
+        "Jordan",
+        "Nicholas",
+        "Evan",
+        "Jeremiah",
+        "Dominic",
+        "Austin",
+        "Ian",
+        "Adam",
+        "Elias",
+        "Colton",
+        "Miles",
+        "Vincent",
+        "Xavier",
+        "Jason",
+        "Jose",
+    ]
+
+    first_names_female = [
+        "Olivia",
+        "Emma",
+        "Charlotte",
+        "Amelia",
+        "Sophia",
+        "Isabella",
+        "Ava",
+        "Mia",
+        "Evelyn",
+        "Harper",
+        "Luna",
+        "Camila",
+        "Gianna",
+        "Elizabeth",
+        "Eleanor",
+        "Ella",
+        "Abigail",
+        "Sofia",
+        "Avery",
+        "Hazel",
+        "Emily",
+        "Chloe",
+        "Penelope",
+        "Layla",
+        "Riley",
+        "Zoey",
+        "Nora",
+        "Lily",
+        "Grace",
+        "Violet",
+        "Aurora",
+        "Scarlett",
+        "Stella",
+        "Maya",
+        "Hannah",
+        "Leah",
+        "Ellie",
+        "Audrey",
+        "Claire",
+        "Alice",
+        "Sadie",
+        "Skylar",
+        "Bella",
+        "Anna",
+        "Lucy",
+        "Paisley",
+        "Caroline",
+        "Genesis",
+        "Aaliyah",
+        "Kennedy",
+    ]
+
+    first_names_neutral = [
+        "Alex",
+        "Taylor",
+        "Jordan",
+        "Morgan",
+        "Casey",
+        "Riley",
+        "Avery",
+        "Quinn",
+        "Cameron",
+        "Dakota",
+        "Reese",
+        "Rowan",
+        "Hayden",
+        "Finley",
+        "Emerson",
+    ]
+
+    last_names = [
+        "Patel",
+        "Chen",
+        "Kim",
+        "Wong",
+        "Singh",
+        "Gupta",
+        "Nakamura",
+        "Tanaka",
+        "Mendoza",
+        "Morales",
+        "Castillo",
+        "Reyes",
+        "Gutierrez",
+        "Ortiz",
+        "Ramos",
+        "Sullivan",
+        "O'Connor",
+        "Murphy",
+        "Walsh",
+        "Kennedy",
+        "Schneider",
+        "Fischer",
+        "Weber",
+        "Meyer",
+        "Wagner",
+        "Dubois",
+        "Moreau",
+        "Laurent",
+        "Simon",
+        "Michel",
+        "Nowak",
+        "Kowalski",
+        "Kaminski",
+        "Zielinski",
+        "Szymanski",
+        "Rossi",
+        "Russo",
+        "Ferrari",
+        "Esposito",
+        "Bianchi",
+        "Silva",
+        "Santos",
+        "Ferreira",
+        "Pereira",
+        "Oliveira",
+        "Johansson",
+        "Lindberg",
+        "Nilsson",
+        "Larsson",
+        "Eriksson",
+        "Berg",
+        "Hansen",
+        "Jensen",
+        "Olsen",
+        "Larsen",
+    ]
+
+    locations = [
+        "San Francisco, CA",
+        "New York, NY",
+        "Austin, TX",
+        "Seattle, WA",
+        "Chicago, IL",
+        "Boston, MA",
+        "Denver, CO",
+        "Remote - US",
+    ]
+
+    employees = []
+    emp_index = 51
+
+    for dept_code, target_count in dept_targets_150.items():
+        start_seq = code_start_index[dept_code]
+
+        if dept_code in ["ENG", "PROD", "SALES", "MKT", "HR"]:
+            dept_lead_code = f"EMP-{dept_code}-001"
+        else:
+            dept_lead_code = f"EMP-{dept_code}-001"
+
+        for i in range(target_count):
+            seq = start_seq + i
+            code = f"EMP-{dept_code}-{seq:03d}"
+
+            # Gender selection with realistic diversity
+            gender_roll = rng.random()
+            if gender_roll < 0.46:
+                gender = Gender.FEMALE
+                first_name = rng.choice(first_names_female)
+            elif gender_roll < 0.92:
+                gender = Gender.MALE
+                first_name = rng.choice(first_names_male)
+            elif gender_roll < 0.97:
+                gender = Gender.OTHER
+                first_name = rng.choice(first_names_neutral)
+            else:
+                gender = Gender.PREFER_NOT_TO_SAY
+                first_name = rng.choice(first_names_neutral)
+
+            last_name = rng.choice(last_names)
+
+            # Role selection
+            if dept_code == "FIN" and i == 0:
+                role = "FIN-MGR"
+            elif dept_code == "OPS" and i == 0:
+                role = "OPS-DIR"
+            elif dept_code == "LEGAL" and i == 0:
+                role = "CORP-COUNSEL"
+            else:
+                role_opts = roles_by_dept[dept_code]
+                role = rng.choice(role_opts)
+
+            # Manager code
+            if dept_code in ["FIN", "OPS", "LEGAL"] and i == 0:
+                manager_code = None
+            else:
+                manager_code = dept_lead_code
+
+            # Overtime frequency: ~18% Frequent, ~32% Occasional, ~50% None
+            ot_roll = rng.random()
+            if ot_roll < 0.18:
+                ot = OvertimeFrequency.FREQUENT
+            elif ot_roll < 0.50:
+                ot = OvertimeFrequency.OCCASIONAL
+            else:
+                ot = OvertimeFrequency.NONE
+
+            # Employment type: ~86% Full time, ~10% Contract, ~4% Part time
+            type_roll = rng.random()
+            if type_roll < 0.86:
+                emp_type = EmploymentType.FULL_TIME
+            elif type_roll < 0.96:
+                emp_type = EmploymentType.CONTRACT
+            else:
+                emp_type = EmploymentType.PART_TIME
+
+            # Work mode: ~50% Hybrid, ~30% Remote, ~20% Office
+            mode_roll = rng.random()
+            if mode_roll < 0.50:
+                mode = WorkMode.HYBRID
+            elif mode_roll < 0.80:
+                mode = WorkMode.REMOTE
+            else:
+                mode = WorkMode.OFFICE
+
+            # Location
+            if dept_code == "SALES":
+                loc = rng.choice(["New York, NY", "Chicago, IL", "Austin, TX"])
+            elif mode == WorkMode.REMOTE:
+                loc = "Remote - US"
+            else:
+                loc = rng.choice(locations[:-1])
+
+            # Dates
+            dob_year = rng.randint(1970, 2001)
+            dob = date(dob_year, rng.randint(1, 12), rng.randint(1, 28))
+
+            doj_year = rng.randint(2017, 2025)
+            doj = date(doj_year, rng.randint(1, 12), rng.randint(1, 28))
+
+            # Skills generation based on role
+            r_skills = role_skills_map[role]
+            skills = []
+
+            # 50% competent/exceeding (0 gaps), 35% developing (1-2 gaps), 15% needs training (3+ gaps)
+            skill_profile_roll = rng.random()
+            if skill_profile_roll < 0.50:
+                for s_code, req, mand in r_skills:
+                    prof = min(5, req + rng.choice([0, 1]))
+                    years_exp = round(rng.uniform(2.5, 9.0), 1)
+                    cert = rng.choice([True, False])
+                    skills.append((s_code, prof, years_exp, cert))
+            elif skill_profile_roll < 0.85:
+                gap_assigned = False
+                for s_code, req, mand in r_skills:
+                    if not gap_assigned and mand and req > 1:
+                        prof = req - 1
+                        gap_assigned = True
+                    else:
+                        prof = req
+                    years_exp = round(rng.uniform(1.5, 6.0), 1)
+                    cert = rng.choice([True, False]) if prof >= req else False
+                    skills.append((s_code, prof, years_exp, cert))
+            else:
+                for s_code, req, mand in r_skills:
+                    prof = max(1, req - rng.choice([1, 2]))
+                    years_exp = round(rng.uniform(0.5, 3.5), 1)
+                    cert = False
+                    skills.append((s_code, prof, years_exp, cert))
+
+            # Performance reviews (1 to 2 reviews in 2025/2026)
+            reviews = []
+            num_reviews = rng.choice([1, 2])
+
+            if ot == OvertimeFrequency.FREQUENT and skill_profile_roll >= 0.85:
+                score_1 = round(Decimal(str(rng.uniform(62.0, 74.0))), 2)
+                rating_1 = rng.choice([2, 3])
+                score_2 = round(Decimal(str(rng.uniform(60.0, 72.0))), 2)
+                rating_2 = 2
+            elif skill_profile_roll < 0.50:
+                score_1 = round(Decimal(str(rng.uniform(85.0, 96.0))), 2)
+                rating_1 = rng.choice([4, 5])
+                score_2 = round(Decimal(str(rng.uniform(88.0, 98.0))), 2)
+                rating_2 = 5
+            else:
+                score_1 = round(Decimal(str(rng.uniform(75.0, 86.0))), 2)
+                rating_1 = rng.choice([3, 4])
+                score_2 = round(Decimal(str(rng.uniform(76.0, 88.0))), 2)
+                rating_2 = rng.choice([3, 4])
+
+            reviews.append(
+                (
+                    ReviewCycle.QUARTERLY,
+                    "Q2 2025",
+                    date(2025, 6, 25),
+                    score_1,
+                    rating_1,
+                    "Good technical collaboration and teamwork.",
+                    "Continue focusing on domain delivery and self-development.",
+                )
+            )
+
+            if num_reviews == 2:
+                reviews.append(
+                    (
+                        ReviewCycle.ANNUAL,
+                        "Annual 2025",
+                        date(2025, 12, 18),
+                        score_2,
+                        rating_2,
+                        "Consistent output aligned with quarterly targets.",
+                        "Expand cross-functional leadership and initiative.",
+                    )
+                )
+
+            # Training enrollments setup (~70% of employees)
+            enrollments = []
+            if rng.random() < 0.70:
+                target_skill = r_skills[0][0]
+                course_code = course_by_skill.get(target_skill, "TR-PY-ADV")
+
+                if rng.random() < 0.65:
+                    enrollments.append(
+                        (
+                            course_code,
+                            date(2025, 4, 10),
+                            date(2025, 5, 20),
+                            EnrollmentStatus.COMPLETED,
+                            Decimal(str(round(rng.uniform(80.0, 98.0), 2))),
+                            True,
+                            rng.choice([4, 5]),
+                        )
+                    )
+                else:
+                    enrollments.append(
+                        (
+                            course_code,
+                            date(2025, 9, 1),
+                            None,
+                            EnrollmentStatus.IN_PROGRESS,
+                            None,
+                            False,
+                            None,
+                        )
+                    )
+
+            employees.append(
+                {
+                    "code": code,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "dob": dob,
+                    "gender": gender,
+                    "phone": f"+1-555-0{emp_index:03d}",
+                    "email": f"{first_name.lower()}.{last_name.lower()}{emp_index}@workforce.local",
+                    "dept": dept_code,
+                    "role": role,
+                    "manager_code": manager_code,
+                    "doj": doj,
+                    "status": EmploymentStatus.ACTIVE,
+                    "type": emp_type,
+                    "mode": mode,
+                    "loc": loc,
+                    "overtime_frequency": ot,
+                    "skills": skills,
+                    "reviews": reviews,
+                    "enrollments": enrollments,
+                }
+            )
+            emp_index += 1
+
+    return employees
+
+
 def seed_database():
     print("[Seed] Starting deterministic database seeding...")
     db = SessionLocal()
 
     try:
-        # Clear child and employee-related tables safely to prevent duplicates and remove test contamination
-        print("[Seed] Safely resetting employee and predictive analytics tables...")
-        db.query(Recommendation).delete()
-        db.query(PredictionHistory).delete()
-        # Registry is re-populated from the trained artifact on the first prediction below
-        db.query(ModelRegistry).delete()
-        db.query(Notification).delete()
-        db.query(PerformanceReview).delete()
-        db.query(TrainingEnrollment).delete()
-        db.query(EmployeeSkill).delete()
-        db.query(Employee).delete()
-        db.commit()
+        # Non-destructive idempotent check: preserve all existing records and relationships
+        print("[Seed] Preserving existing database records; performing idempotent seed...")
 
         # 1. Seed Demo Users
         print("[Seed] 1/7 Seeding Users...")
@@ -566,6 +1110,24 @@ def seed_database():
                 "name": "Growth & Marketing",
                 "description": "Brand strategy, performance marketing, and market analytics.",
                 "hr_manager_user_id": user_map["user"].id,
+            },
+            {
+                "department_code": "FIN",
+                "name": "Finance & Accounting",
+                "description": "Financial planning, corporate accounting, treasury, and fiscal strategy.",
+                "hr_manager_user_id": user_map["user"].id,
+            },
+            {
+                "department_code": "OPS",
+                "name": "Operations & Infrastructure",
+                "description": "Business operations, IT support, infrastructure, and vendor management.",
+                "hr_manager_user_id": user_map["user"].id,
+            },
+            {
+                "department_code": "LEGAL",
+                "name": "Legal & Compliance",
+                "description": "Corporate governance, regulatory compliance, intellectual property, and contracts.",
+                "hr_manager_user_id": user_map["admin"].id,
             },
         ]
 
@@ -678,6 +1240,24 @@ def seed_database():
                 "name": "Growth Analytics & SEO",
                 "skill_category": "Domain",
                 "display_order": 15,
+            },
+            {
+                "skill_code": "SK-FIN",
+                "name": "Financial Modeling & Valuation",
+                "skill_category": "Domain",
+                "display_order": 16,
+            },
+            {
+                "skill_code": "SK-COMPL",
+                "name": "Regulatory Compliance & Governance",
+                "skill_category": "Domain",
+                "display_order": 17,
+            },
+            {
+                "skill_code": "SK-SYSADMIN",
+                "name": "Systems Administration & IT Infrastructure",
+                "skill_category": "Technical",
+                "display_order": 18,
             },
         ]
 
@@ -798,6 +1378,166 @@ def seed_database():
                     ("SK-COMM", 4, True),
                 ],
             },
+            {
+                "dept": "ENG",
+                "code": "QA-ENG",
+                "title": "Quality Assurance Engineer",
+                "grade_level": 3,
+                "description": "Automated testing, test suite design, and software reliability engineering.",
+                "skills": [
+                    ("SK-PY", 3, True),
+                    ("SK-DOCKER", 3, False),
+                    ("SK-AGILE", 3, True),
+                ],
+            },
+            {
+                "dept": "ENG",
+                "code": "DEVOPS-ENG",
+                "title": "Senior DevOps Engineer",
+                "grade_level": 5,
+                "description": "Cloud infrastructure provisioning, CI/CD pipelines, and cluster reliability.",
+                "skills": [
+                    ("SK-DOCKER", 5, True),
+                    ("SK-CLOUD", 5, True),
+                    ("SK-SEC", 4, True),
+                    ("SK-PY", 3, False),
+                ],
+            },
+            {
+                "dept": "PROD",
+                "code": "UX-DES",
+                "title": "Senior Product Designer",
+                "grade_level": 4,
+                "description": "Design systems, user research, wireframing, and interaction design.",
+                "skills": [
+                    ("SK-PRODMG", 4, True),
+                    ("SK-COMM", 4, True),
+                    ("SK-AGILE", 3, True),
+                ],
+            },
+            {
+                "dept": "SALES",
+                "code": "SDR",
+                "title": "Sales Development Representative",
+                "grade_level": 2,
+                "description": "Outbound prospect qualification, lead generation, and pipeline development.",
+                "skills": [
+                    ("SK-COMM", 4, True),
+                    ("SK-NEGOT", 3, True),
+                    ("SK-BI", 2, False),
+                ],
+            },
+            {
+                "dept": "HR",
+                "code": "TALENT-ACQ",
+                "title": "Talent Acquisition Specialist",
+                "grade_level": 3,
+                "description": "Full-cycle technical and commercial recruiting, sourcing, and candidate experience.",
+                "skills": [
+                    ("SK-TALENT", 4, True),
+                    ("SK-COMM", 4, True),
+                    ("SK-AGILE", 2, False),
+                ],
+            },
+            {
+                "dept": "FIN",
+                "code": "FIN-MGR",
+                "title": "Finance Manager",
+                "grade_level": 5,
+                "description": "Directs financial planning, budgeting, accounting controls, and financial reporting.",
+                "skills": [
+                    ("SK-FIN", 5, True),
+                    ("SK-SQL", 4, True),
+                    ("SK-LEAD", 4, True),
+                    ("SK-COMM", 4, True),
+                ],
+            },
+            {
+                "dept": "FIN",
+                "code": "SR-FIN-ANALYST",
+                "title": "Senior Financial Analyst",
+                "grade_level": 4,
+                "description": "Corporate forecasting, revenue modeling, and cost optimization.",
+                "skills": [
+                    ("SK-FIN", 4, True),
+                    ("SK-BI", 4, True),
+                    ("SK-SQL", 4, True),
+                ],
+            },
+            {
+                "dept": "FIN",
+                "code": "FIN-ANALYST",
+                "title": "Financial Analyst",
+                "grade_level": 2,
+                "description": "Budget tracking, ledger reconciliation, and variance analysis.",
+                "skills": [
+                    ("SK-FIN", 3, True),
+                    ("SK-BI", 3, True),
+                    ("SK-COMM", 3, False),
+                ],
+            },
+            {
+                "dept": "OPS",
+                "code": "OPS-DIR",
+                "title": "Director of Operations",
+                "grade_level": 6,
+                "description": "Enterprise operations strategy, business systems architecture, and facility logistics.",
+                "skills": [
+                    ("SK-LEAD", 5, True),
+                    ("SK-COMM", 5, True),
+                    ("SK-AGILE", 4, True),
+                    ("SK-SYSADMIN", 3, False),
+                ],
+            },
+            {
+                "dept": "OPS",
+                "code": "OPS-LEAD",
+                "title": "Business Operations Lead",
+                "grade_level": 4,
+                "description": "Cross-functional process improvement, OKR tracking, and tooling implementation.",
+                "skills": [
+                    ("SK-AGILE", 4, True),
+                    ("SK-COMM", 4, True),
+                    ("SK-BI", 3, True),
+                ],
+            },
+            {
+                "dept": "OPS",
+                "code": "SYS-ADMIN",
+                "title": "Systems Administrator",
+                "grade_level": 3,
+                "description": "Internal IT helpdesk, identity provider administration, and endpoint security.",
+                "skills": [
+                    ("SK-SYSADMIN", 4, True),
+                    ("SK-SEC", 3, True),
+                    ("SK-CLOUD", 3, True),
+                ],
+            },
+            {
+                "dept": "LEGAL",
+                "code": "CORP-COUNSEL",
+                "title": "Senior Corporate Counsel",
+                "grade_level": 5,
+                "description": "Commercial vendor contracts, IP portfolio, regulatory advice, and data privacy.",
+                "skills": [
+                    ("SK-COMPL", 5, True),
+                    ("SK-NEGOT", 4, True),
+                    ("SK-COMM", 5, True),
+                    ("SK-LEAD", 3, False),
+                ],
+            },
+            {
+                "dept": "LEGAL",
+                "code": "COMPLIANCE-SPEC",
+                "title": "Regulatory Compliance Specialist",
+                "grade_level": 3,
+                "description": "Policy audit, SOC2/ISO compliance reviews, and governance documentation.",
+                "skills": [
+                    ("SK-COMPL", 4, True),
+                    ("SK-SEC", 3, True),
+                    ("SK-COMM", 3, True),
+                ],
+            },
         ]
 
         role_map = {}
@@ -833,6 +1573,22 @@ def seed_database():
                     db.add(rs)
                 db.flush()
             else:
+                for s_code, req_prof, mandatory in r_data["skills"]:
+                    sk = skill_map[s_code]
+                    rs = (
+                        db.query(RoleSkill)
+                        .filter(RoleSkill.job_role_id == existing.id, RoleSkill.skill_id == sk.id)
+                        .first()
+                    )
+                    if not rs:
+                        rs = RoleSkill(
+                            job_role_id=existing.id,
+                            skill_id=sk.id,
+                            required_proficiency=req_prof,
+                            mandatory=mandatory,
+                        )
+                        db.add(rs)
+                db.flush()
                 role_map[r_data["code"]] = existing
 
         # 5. Seed Training Courses & Skills
@@ -912,6 +1668,36 @@ def seed_database():
                 "difficulty_level": DifficultyLevel.INTERMEDIATE,
                 "target_skills": ["SK-PRODMG", "SK-AGILE"],
             },
+            {
+                "course_code": "TR-FIN-MODEL",
+                "title": "Executive Financial Modeling & Corporate Valuation",
+                "description": "DCF modeling, scenario analysis, capital budgeting, and financial analytics.",
+                "provider": "Wharton Online",
+                "duration_hours": Decimal("24.0"),
+                "difficulty_level": DifficultyLevel.ADVANCED,
+                "training_mode": TrainingMode.ONLINE,
+                "target_skills": ["SK-FIN", "SK-BI"],
+            },
+            {
+                "course_code": "TR-COMPL-GOV",
+                "title": "Corporate Compliance, Privacy & Regulatory Risk",
+                "description": "Enterprise risk management, GDPR/CCPA data privacy, and ethical compliance frameworks.",
+                "provider": "Ethics & Compliance Initiative",
+                "duration_hours": Decimal("20.0"),
+                "difficulty_level": DifficultyLevel.INTERMEDIATE,
+                "training_mode": TrainingMode.ONLINE,
+                "target_skills": ["SK-COMPL", "SK-SEC"],
+            },
+            {
+                "course_code": "TR-SYS-INFRA",
+                "title": "Enterprise Systems Automation & IT Operations",
+                "description": "Infrastructure as code, modern sysadmin workflows, and high availability systems.",
+                "provider": "Linux Foundation",
+                "duration_hours": Decimal("28.0"),
+                "difficulty_level": DifficultyLevel.ADVANCED,
+                "training_mode": TrainingMode.ONLINE,
+                "target_skills": ["SK-SYSADMIN", "SK-DOCKER"],
+            },
         ]
 
         course_map = {}
@@ -940,11 +1726,26 @@ def seed_database():
                     db.add(ts)
                 db.flush()
             else:
+                target_skills = c_data.pop("target_skills")
+                for s_code in target_skills:
+                    sk = skill_map[s_code]
+                    ts = (
+                        db.query(TrainingSkill)
+                        .filter(
+                            TrainingSkill.training_course_id == existing.id,
+                            TrainingSkill.skill_id == sk.id,
+                        )
+                        .first()
+                    )
+                    if not ts:
+                        ts = TrainingSkill(training_course_id=existing.id, skill_id=sk.id)
+                        db.add(ts)
+                db.flush()
                 course_map[c_data["course_code"]] = existing
 
         # 6. Seed Employees Hierarchy & Profiles
-        print("[Seed] 6/7 Seeding 12+ Comprehensive Employee Profiles...")
-        employees_data = generate_50_employees()
+        print("[Seed] 6/7 Seeding 200 Comprehensive Employee Profiles across 8 Departments...")
+        employees_data = generate_50_employees() + generate_150_additional_employees()
 
         emp_map = {}
         # First pass: Create employees
@@ -985,11 +1786,13 @@ def seed_database():
             if e_data["manager_code"]:
                 emp = emp_map[e_data["code"]]
                 mgr = emp_map.get(e_data["manager_code"])
-                if mgr:
+                if mgr and not emp.manager_id:
                     emp.manager_id = mgr.id
 
         # Link the demo EMPLOYEE account to its employee record (self-service access)
-        emp_map[DEMO_EMPLOYEE_CODE].user_id = user_map["demo"].id
+        demo_emp = emp_map.get(DEMO_EMPLOYEE_CODE)
+        if demo_emp and not demo_emp.user_id:
+            demo_emp.user_id = user_map["demo"].id
         db.flush()
 
         # Third pass: Assign Skills, Performance Reviews, and Enrollments
@@ -1072,13 +1875,44 @@ def seed_database():
         from app.services.recommendation_service import RecommendationService
 
         print("[Seed] 7/7 Running ML risk predictions & generating recommendations...")
-        predictions = PredictionService().predict_all_employees(db)
-        at_risk = sum(1 for p in predictions if p.risk_level.value in ("HIGH", "CRITICAL"))
+        prediction_svc = PredictionService()
+        active_model = prediction_svc.get_active_model(db)
+
+        # Retrieve IDs of employees who already have at least one prediction record
+        existing_pred_emp_ids = {
+            r[0] for r in db.query(PredictionHistory.employee_id).distinct().all()
+        }
+        all_active_emps = db.query(Employee).filter(Employee.is_deleted == False).all()
+        unscored_employees = [e for e in all_active_emps if e.id not in existing_pred_emp_ids]
+
+        new_predictions = []
+        for emp in unscored_employees:
+            res = predict_employee_risk(emp)
+            history = PredictionHistory(
+                employee_id=emp.id,
+                model_registry_id=active_model.id,
+                prediction_type=PredictionType.ATTRITION,
+                prediction_score=Decimal(str(res["score"])),
+                confidence_score=Decimal(str(res["confidence"])),
+                risk_level=res["risk_level"],
+                prediction_result=res["result_str"],
+                prediction_reason=res["reason_str"],
+            )
+            db.add(history)
+            new_predictions.append(history)
+
+        db.commit()
+
         created_recs = RecommendationService().generate_recommendations_for_all(db)
         print(
-            f"[Seed]   {len(predictions)} employees scored ({at_risk} high/critical risk), "
+            f"[Seed]   {len(new_predictions)} newly scored ({len(all_active_emps)} total active employees), "
             f"{created_recs} recommendations created."
         )
+
+        # 8. Seed Learning, Quizzes, Assessments & Retention Interventions
+        from app.database.seed_learning import seed_learning_and_retention
+        seed_learning_and_retention(db)
+
         print("[Seed] Database seeding completed successfully!")
 
     except Exception as e:

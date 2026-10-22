@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 if TYPE_CHECKING:
     from app.models.employee_skill import EmployeeSkill
     from app.models.role_skill import RoleSkill
+    from app.models.skill_assessment import SkillAssessment
 
 
 class Skill(BaseModel):
@@ -70,4 +71,9 @@ class Skill(BaseModel):
         "TrainingSkill",
         back_populates="skill",
         passive_deletes=True,
+    )
+    skill_assessments: Mapped[list["SkillAssessment"]] = relationship(
+        "SkillAssessment",
+        back_populates="skill",
+        cascade="all, delete-orphan",
     )
