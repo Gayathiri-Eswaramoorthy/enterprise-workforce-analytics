@@ -43,8 +43,8 @@ that addresses it.
 
 - Roles: HR_ADMIN, HR_MANAGER, EMPLOYEE, with strict data scoping (employees see only their own
   records; org-wide data is HR-only).
-- Risk levels: Low, Medium, High, Critical (score 0–100%). Model: Random Forest, v1.1.0, 84.1%
-  held-out test accuracy, trained on a 5,000-row synthetic dataset.
+- Risk levels: Low, Medium, High, Critical (score 0–100%). Model: Random Forest, v2.0.0-ibm, 77.89%
+  held-out test accuracy (61.70% recall, 0.72 ROC-AUC), trained on the fictional IBM HR Analytics benchmark dataset (1,470 records).
 - Stack: React 19 + Vite + TypeScript + Tailwind CSS 3 + Recharts frontend; FastAPI + PostgreSQL
   backend.
 - Terminology in the UI: "attrition risk", "skill gap", "action" (a recommendation), "re-score".

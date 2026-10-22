@@ -228,6 +228,27 @@ make it feel less like a demo if you want that for a presentation:
 
 ---
 
+# Pass 3: IBM HR Analytics Benchmark Model Integration
+
+## 15. Transition from synthetic training to IBM HR Analytics benchmark
+
+- **Dataset Provenance**: Trained on the publicly available, fictional IBM HR Analytics Employee Attrition benchmark dataset (`ml/datasets/WA_Fn-UseC_-HR-Employee-Attrition.csv`, 1,470 rows). The original synthetic generator (`dataset_generator.py`) and synthetic dataset (`synthetic_workforce_data.csv`) were preserved and kept unchanged.
+- **Preprocessing Pipeline**:
+  - Excluded identifiers and zero-variance constants: `EmployeeNumber`, `EmployeeCount`, `Over18`, `StandardHours`.
+  - Avoided data leakage by splitting with 80% train / 20% held-out test using stratification (`random_state=42`).
+  - Implemented scikit-learn `Pipeline` bundling `SimpleImputer` and `StandardScaler` (numerical) and `OneHotEncoder(handle_unknown='ignore')` (categorical) together with the `RandomForestClassifier`.
+- **Feature Alignment & Application Integration**:
+  - Evaluated full 30-feature benchmark experiment (82.99% test accuracy, 0.8029 ROC-AUC).
+  - Derived deployable 8-feature subset directly compatible with the PostgreSQL `Employee` schema without fabricating unavailable fields: `Department`, `Gender`, `OverTime`, `Age`, `JobLevel`, `YearsAtCompany`, `PerformanceRating`, `TrainingTimesLastYear`.
+  - Deployable model achieves 77.89% accuracy, 61.70% recall (catching 29 of 47 at-risk records), and 0.7166 ROC-AUC on the held-out test set, outperforming the 84.01% majority-class dummy baseline which achieves 0.00% recall.
+- **Serving & Transparency**:
+  - Unified pipeline serialized to `ml/artifacts/workforce_risk_model.joblib`.
+  - Comprehensive metadata saved to `ml/artifacts/model_metadata.joblib`.
+  - Active model registered in PostgreSQL `ModelRegistry` as `v2.0.0-ibm`.
+  - Maintained single and batch predictions, transparent factor explanations, risk level mapping, and rule-based fallback.
+
+---
+
 ## Ideas for further work (not done yet)
 
 **Security**
