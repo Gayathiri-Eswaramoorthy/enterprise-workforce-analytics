@@ -10,17 +10,14 @@ from app.database import EnrollmentStatus
 from app.models import (
     CourseLesson,
     CourseQuiz,
-    Employee,
     LessonCompletion,
     QuizAttempt,
-    QuizOption,
     QuizQuestion,
     TrainingCourse,
     TrainingEnrollment,
 )
 from app.schemas.learning import (
     CourseLessonResponse,
-    CourseLessonSummary,
     CourseQuizPublicResponse,
     CourseResourceCreateRequest,
     CourseResourceUpdateRequest,
@@ -34,7 +31,7 @@ from app.schemas.learning import (
     QuizSubmissionRequest,
 )
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 
@@ -46,9 +43,13 @@ class LearningService:
         stmt = (
             select(TrainingEnrollment)
             .options(
-                selectinload(TrainingEnrollment.training_course).selectinload(TrainingCourse.lessons),
+                selectinload(TrainingEnrollment.training_course).selectinload(
+                    TrainingCourse.lessons
+                ),
                 selectinload(TrainingEnrollment.training_course).selectinload(TrainingCourse.quiz),
-                selectinload(TrainingEnrollment.training_course).selectinload(TrainingCourse.training_skills),
+                selectinload(TrainingEnrollment.training_course).selectinload(
+                    TrainingCourse.training_skills
+                ),
                 selectinload(TrainingEnrollment.lesson_completions),
                 selectinload(TrainingEnrollment.quiz_attempts),
             )
@@ -63,12 +64,14 @@ class LearningService:
             if not course:
                 continue
 
-            lessons = [l for l in (course.lessons or []) if l.is_active]
-            required_lessons = [l for l in lessons if l.is_required]
+            lessons = [lesson for lesson in (course.lessons or []) if lesson.is_active]
+            required_lessons = [lesson for lesson in lessons if lesson.is_required]
             completed_lesson_ids = {c.lesson_id for c in enr.lesson_completions if c.is_completed}
 
             total_req = len(required_lessons)
-            completed_req = sum(1 for l in required_lessons if l.id in completed_lesson_ids)
+            completed_req = sum(
+                1 for lesson in required_lessons if lesson.id in completed_lesson_ids
+            )
 
             if enr.enrollment_status == EnrollmentStatus.COMPLETED:
                 progress_pct = Decimal("100.00")
@@ -156,34 +159,36 @@ class LearningService:
 
         stmt_lessons = (
             select(CourseLesson)
-            .where(CourseLesson.course_id == course_id, CourseLesson.is_active == True)  # noqa: E712
+            .where(
+                CourseLesson.course_id == course_id, CourseLesson.is_active == True
+            )  # noqa: E712
             .order_by(CourseLesson.order_index.asc())
         )
         lessons = db.scalars(stmt_lessons).all()
 
         responses: list[CourseLessonResponse] = []
-        for l in lessons:
-            comp = completions_map.get(l.id)
+        for lesson in lessons:
+            comp = completions_map.get(lesson.id)
             is_comp = comp.is_completed if comp else False
             comp_at = comp.completed_at if comp else None
             is_opened = comp.resource_opened if comp else False
             opened_at = comp.opened_at if comp else None
 
             resp = CourseLessonResponse(
-                id=l.id,
-                course_id=l.course_id,
-                title=l.title,
-                content=l.content,
-                description=l.description,
-                provider=l.provider,
-                skill_covered=l.skill_covered,
-                resource_type=l.resource_type,
-                access_type=l.access_type,
-                order_index=l.order_index,
-                is_required=l.is_required,
-                estimated_minutes=l.estimated_minutes,
-                external_url=l.external_url,
-                is_active=l.is_active,
+                id=lesson.id,
+                course_id=lesson.course_id,
+                title=lesson.title,
+                content=lesson.content,
+                description=lesson.description,
+                provider=lesson.provider,
+                skill_covered=lesson.skill_covered,
+                resource_type=lesson.resource_type,
+                access_type=lesson.access_type,
+                order_index=lesson.order_index,
+                is_required=lesson.is_required,
+                estimated_minutes=lesson.estimated_minutes,
+                external_url=lesson.external_url,
+                is_active=lesson.is_active,
                 resource_opened=is_opened,
                 opened_at=opened_at,
                 is_completed=is_comp,
@@ -327,7 +332,7 @@ class LearningService:
         stmt_all_req = select(CourseLesson).where(
             CourseLesson.course_id == lesson.course_id,
             CourseLesson.is_required == True,  # noqa: E712
-            CourseLesson.is_active == True,    # noqa: E712
+            CourseLesson.is_active == True,  # noqa: E712
         )
         all_req_lessons = db.scalars(stmt_all_req).all()
         req_count = len(all_req_lessons)
@@ -339,14 +344,18 @@ class LearningService:
                 LessonCompletion.enrollment_id == enrollment.id,
                 CourseLesson.course_id == lesson.course_id,
                 CourseLesson.is_required == True,  # noqa: E712
-                CourseLesson.is_active == True,    # noqa: E712
+                CourseLesson.is_active == True,  # noqa: E712
                 LessonCompletion.is_completed == True,  # noqa: E712
             )
         )
         done_count = len(db.scalars(stmt_done).all())
 
         # Check quiz requirement
-        quiz = db.scalar(select(CourseQuiz).where(CourseQuiz.course_id == lesson.course_id, CourseQuiz.is_active == True))  # noqa: E712
+        quiz = db.scalar(
+            select(CourseQuiz).where(
+                CourseQuiz.course_id == lesson.course_id, CourseQuiz.is_active == True
+            )
+        )  # noqa: E712
         quiz_passed = True
         if quiz:
             passing_attempt = db.scalar(
@@ -396,9 +405,7 @@ class LearningService:
         """
         stmt_quiz = (
             select(CourseQuiz)
-            .options(
-                selectinload(CourseQuiz.questions).selectinload(QuizQuestion.options)
-            )
+            .options(selectinload(CourseQuiz.questions).selectinload(QuizQuestion.options))
             .where(CourseQuiz.course_id == course_id, CourseQuiz.is_active == True)  # noqa: E712
         )
         quiz = db.scalar(stmt_quiz)
@@ -407,7 +414,11 @@ class LearningService:
                 id=quiz.id if quiz else None,
                 course_id=course_id,
                 title=quiz.title if quiz else "Course Assessment",
-                description=quiz.description if quiz else "No active assessment currently published for this course.",
+                description=(
+                    quiz.description
+                    if quiz
+                    else "No active assessment currently published for this course."
+                ),
                 passing_score=quiz.passing_score if quiz else Decimal("70.00"),
                 max_attempts=quiz.max_attempts if quiz else 3,
                 questions_count=0,
@@ -504,9 +515,7 @@ class LearningService:
         # Validate quiz
         stmt_quiz = (
             select(CourseQuiz)
-            .options(
-                selectinload(CourseQuiz.questions).selectinload(QuizQuestion.options)
-            )
+            .options(selectinload(CourseQuiz.questions).selectinload(QuizQuestion.options))
             .where(CourseQuiz.course_id == course_id, CourseQuiz.is_active == True)  # noqa: E712
         )
         quiz = db.scalar(stmt_quiz)
@@ -586,7 +595,7 @@ class LearningService:
             stmt_req = select(CourseLesson).where(
                 CourseLesson.course_id == course_id,
                 CourseLesson.is_required == True,  # noqa: E712
-                CourseLesson.is_active == True,    # noqa: E712
+                CourseLesson.is_active == True,  # noqa: E712
             )
             req_lessons = db.scalars(stmt_req).all()
             total_req = len(req_lessons)
@@ -598,7 +607,7 @@ class LearningService:
                     LessonCompletion.enrollment_id == enrollment.id,
                     CourseLesson.course_id == course_id,
                     CourseLesson.is_required == True,  # noqa: E712
-                    CourseLesson.is_active == True,    # noqa: E712
+                    CourseLesson.is_active == True,  # noqa: E712
                     LessonCompletion.is_completed == True,  # noqa: E712
                 )
             )
@@ -645,7 +654,11 @@ class LearningService:
         for a in attempts:
             breakdown_data = None
             if isinstance(a.answers_payload, list):
-                breakdown_data = [QuizQuestionResult(**item) for item in a.answers_payload if isinstance(item, dict)]
+                breakdown_data = [
+                    QuizQuestionResult(**item)
+                    for item in a.answers_payload
+                    if isinstance(item, dict)
+                ]
             results.append(
                 QuizAttemptResponse(
                     id=a.id,
@@ -657,7 +670,11 @@ class LearningService:
                     passed=a.passed,
                     attempted_at=a.attempted_at,
                     breakdown=breakdown_data,
-                    course_completed=a.enrollment.enrollment_status == EnrollmentStatus.COMPLETED if a.enrollment else False,
+                    course_completed=(
+                        a.enrollment.enrollment_status == EnrollmentStatus.COMPLETED
+                        if a.enrollment
+                        else False
+                    ),
                 )
             )
         return results
@@ -670,8 +687,12 @@ class LearningService:
             select(TrainingCourse)
             .options(
                 selectinload(TrainingCourse.enrollments).selectinload(TrainingEnrollment.employee),
-                selectinload(TrainingCourse.enrollments).selectinload(TrainingEnrollment.lesson_completions),
-                selectinload(TrainingCourse.enrollments).selectinload(TrainingEnrollment.quiz_attempts),
+                selectinload(TrainingCourse.enrollments).selectinload(
+                    TrainingEnrollment.lesson_completions
+                ),
+                selectinload(TrainingCourse.enrollments).selectinload(
+                    TrainingEnrollment.quiz_attempts
+                ),
                 selectinload(TrainingCourse.lessons),
                 selectinload(TrainingCourse.training_skills),
             )
@@ -694,7 +715,9 @@ class LearningService:
             passed_quiz_count = 0
             attempted_quiz_count = 0
 
-            req_lessons = [l for l in c.lessons if l.is_required and l.is_active]
+            req_lessons = [
+                lesson for lesson in c.lessons if lesson.is_required and lesson.is_active
+            ]
             req_count = len(req_lessons)
 
             for enr in c.enrollments:
@@ -703,7 +726,7 @@ class LearningService:
                     continue
 
                 comp_ids = {lc.lesson_id for lc in enr.lesson_completions if lc.is_completed}
-                done_req = sum(1 for l in req_lessons if l.id in comp_ids)
+                done_req = sum(1 for lesson in req_lessons if lesson.id in comp_ids)
                 if enr.enrollment_status == EnrollmentStatus.COMPLETED:
                     prog_pct = Decimal("100.00")
                 elif req_count > 0:
@@ -722,7 +745,9 @@ class LearningService:
 
                 # Check overdue (> 60 days since enrollment without completion)
                 days_enrolled = (today - enr.enrollment_date).days
-                is_overdue = days_enrolled > 60 and enr.enrollment_status != EnrollmentStatus.COMPLETED
+                is_overdue = (
+                    days_enrolled > 60 and enr.enrollment_status != EnrollmentStatus.COMPLETED
+                )
                 if is_overdue:
                     overdue += 1
 
@@ -739,7 +764,9 @@ class LearningService:
                 supp_reason = None
                 if is_overdue and prog_pct < Decimal("50.00"):
                     needs_supp = True
-                    supp_reason = f"Enrolled {days_enrolled} days ago with only {prog_pct}% completion"
+                    supp_reason = (
+                        f"Enrolled {days_enrolled} days ago with only {prog_pct}% completion"
+                    )
                 elif latest_attempt and not latest_attempt.passed and len(enr.quiz_attempts) >= 2:
                     needs_supp = True
                     supp_reason = f"Repeated quiz struggle ({len(enr.quiz_attempts)} attempts, latest score {latest_attempt.score}%)"

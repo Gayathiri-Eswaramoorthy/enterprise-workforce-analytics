@@ -7,16 +7,16 @@ Automated tests for Retention Interventions and Longitudinal Follow-up Tracking:
 """
 
 from datetime import date, timedelta
-import pytest
+
+from app.models import AuditLog, Employee, Recommendation, RetentionIntervention
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database import InterventionStatus, RetentionOutcome
-from app.models import AuditLog, Employee, Recommendation, RetentionIntervention, User
 
-
-def test_create_retention_intervention_by_hr(client: TestClient, admin_headers: dict, db_session: Session):
+def test_create_retention_intervention_by_hr(
+    client: TestClient, admin_headers: dict, db_session: Session
+):
     """HR user can log a structured retention intervention with scheduled follow-up."""
     emp = db_session.scalars(select(Employee)).first()
     rec = db_session.scalars(
@@ -78,7 +78,9 @@ def test_list_and_filter_retention_interventions(client: TestClient, admin_heade
     assert isinstance(items, list)
 
     # Filter by status
-    offered_resp = client.get("/api/v1/retention/interventions?status=OFFERED", headers=admin_headers)
+    offered_resp = client.get(
+        "/api/v1/retention/interventions?status=OFFERED", headers=admin_headers
+    )
     assert offered_resp.status_code == 200
     for item in offered_resp.json():
         assert item["status"] == "OFFERED"

@@ -239,4 +239,3 @@ class RetentionOutcome(str, Enum):
     EMPLOYED = "EMPLOYED"
     DEPARTED = "DEPARTED"
     PENDING = "PENDING"
-

@@ -5,7 +5,7 @@ Service for managing employee career discussion and learning interest requests.
 from datetime import datetime, timezone
 from uuid import UUID
 
-from app.database import NotificationType, UserRole
+from app.database import NotificationType
 from app.models import Employee, EmployeeRequest, Notification, User
 from app.schemas.employee_request import (
     EmployeeRequestCreate,
@@ -111,7 +111,8 @@ class EmployeeRequestService:
                 title="💬 HR Discussion Update",
                 message=(
                     f"HR has reviewed your request regarding '{req.topic}'. "
-                    f"Status: {req.status}." + (f" Notes: {req.response_notes}" if req.response_notes else "")
+                    f"Status: {req.status}."
+                    + (f" Notes: {req.response_notes}" if req.response_notes else "")
                 ),
                 notification_type=NotificationType.SYSTEM,
             )

@@ -4,7 +4,7 @@ Learning and quiz API endpoints for employees and HR administrators.
 
 from uuid import UUID
 
-from app.database import UserRole, get_db
+from app.database import get_db
 from app.models import User
 from app.schemas.assessment import SkillAssessmentComparison
 from app.schemas.learning import (
@@ -18,11 +18,9 @@ from app.schemas.learning import (
 )
 from app.security import (
     HR_ROLES,
-    ensure_employee_access,
     get_current_active_user,
     get_linked_employee_id,
     require_hr,
-    scope_employee_filter,
 )
 from app.services.assessment_service import AssessmentService
 from app.services.audit_service import AuditService

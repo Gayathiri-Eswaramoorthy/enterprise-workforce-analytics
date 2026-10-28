@@ -22,26 +22,18 @@ Requirements verified:
 """
 
 from datetime import date, timedelta
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from app.database import EnrollmentStatus, UserRole
+import pytest
+from app.database import EnrollmentStatus
 from app.models import (
-    AuditLog,
-    CourseQuiz,
     Employee,
-    EmployeeRequest,
-    EmployeeSkill,
-    JobRole,
-    Recommendation,
-    RetentionIntervention,
-    Skill,
     TrainingCourse,
     TrainingEnrollment,
     User,
 )
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 
 @pytest.fixture(scope="module")
@@ -62,6 +54,7 @@ def other_employee(db_session: Session, own_employee: Employee) -> Employee:
 # ---------------------------------------------------------------------------
 # 1. Role Separation: HR Admin vs HR Manager
 # ---------------------------------------------------------------------------
+
 
 def test_hr_admin_can_manage_users(client: TestClient, admin_headers: dict):
     """HR Admin can view and manage user accounts and system roles."""
@@ -133,6 +126,7 @@ def test_hr_manager_can_view_analytics_and_interventions(
 # 2. Employee Privacy & Scoping
 # ---------------------------------------------------------------------------
 
+
 def test_employee_cannot_inspect_other_employee_skills(
     client: TestClient, employee_headers: dict, other_employee: Employee
 ):
@@ -159,6 +153,7 @@ def test_employee_can_inspect_own_skills(
 # ---------------------------------------------------------------------------
 # 3. Voluntary Learning Enrollment (No Automatic Force-Enrollment)
 # ---------------------------------------------------------------------------
+
 
 def test_voluntary_enrollment_workflow(
     client: TestClient, employee_headers: dict, own_employee: Employee, db_session: Session
@@ -205,6 +200,7 @@ def test_voluntary_enrollment_workflow(
 # ---------------------------------------------------------------------------
 # 4. Retention Intervention Workflow & Effectiveness Tracking
 # ---------------------------------------------------------------------------
+
 
 def test_hr_manager_creates_and_tracks_retention_intervention(
     client: TestClient, manager_headers: dict, other_employee: Employee, db_session: Session
@@ -264,6 +260,7 @@ def test_hr_manager_creates_and_tracks_retention_intervention(
 # ---------------------------------------------------------------------------
 # 5. Employee Discussion & Learning Interest Requests
 # ---------------------------------------------------------------------------
+
 
 def test_employee_discussion_request_lifecycle(
     client: TestClient,
@@ -334,6 +331,7 @@ def test_employee_discussion_request_lifecycle(
 # 6. Admin Overview & Shared Resource Permissions
 # ---------------------------------------------------------------------------
 
+
 def test_admin_overview_endpoint_permissions(
     client: TestClient, admin_headers: dict, manager_headers: dict, employee_headers: dict
 ):
@@ -385,4 +383,3 @@ def test_department_endpoint_permissions(
     # Employee forbidden
     emp_resp = client.get("/api/v1/departments", headers=employee_headers)
     assert emp_resp.status_code == 403
-

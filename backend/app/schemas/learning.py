@@ -2,12 +2,12 @@
 Learning module schemas for lessons, quizzes, attempts, and employee progress.
 """
 
+import urllib.parse
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
 from app.database import DifficultyLevel, EnrollmentStatus, TrainingMode
-import urllib.parse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -71,7 +71,9 @@ class CourseResourceCreateRequest(BaseModel):
     content: str = Field(default="", description="In-app key concepts or markdown summary")
     provider: str = Field(default="External", max_length=100)
     skill_covered: str | None = Field(default=None, max_length=150)
-    resource_type: str = Field(default="VIDEO", description="VIDEO, COURSE, ARTICLE, or DOCUMENTATION")
+    resource_type: str = Field(
+        default="VIDEO", description="VIDEO, COURSE, ARTICLE, or DOCUMENTATION"
+    )
     access_type: str = Field(default="FREE", description="FREE, PAID, or ACCOUNT_REQUIRED")
     external_url: str | None = None
     estimated_minutes: int = Field(default=15, ge=1, le=1440)
