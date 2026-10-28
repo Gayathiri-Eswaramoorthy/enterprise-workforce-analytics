@@ -12,26 +12,24 @@ Traces the complete workforce analytics lifecycle:
 """
 
 from datetime import date
-from decimal import Decimal
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from app.database import EnrollmentStatus, InterventionStatus, RecommendationStatus, RetentionOutcome
+from app.database import (
+    EnrollmentStatus,
+    RecommendationStatus,
+)
 from app.models import (
-    CourseLesson,
     CourseQuiz,
-    Employee,
     LessonCompletion,
     QuizAttempt,
     QuizQuestion,
     Recommendation,
-    RetentionIntervention,
     TrainingCourse,
     TrainingEnrollment,
     User,
 )
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 
 def test_complete_recommendation_to_outcome_workflow(
@@ -148,20 +146,26 @@ def test_complete_recommendation_to_outcome_workflow(
         db_session.commit()
 
     # Reset previous progress for isolated test
-    db_session.query(LessonCompletion).filter(LessonCompletion.enrollment_id == enrollment.id).delete()
+    db_session.query(LessonCompletion).filter(
+        LessonCompletion.enrollment_id == enrollment.id
+    ).delete()
     db_session.query(QuizAttempt).filter(QuizAttempt.enrollment_id == enrollment.id).delete()
     db_session.commit()
 
     # -------------------------------------------------------------------------
     # 6. Resource Opened Tracking: Employee opens external learning resource
     # -------------------------------------------------------------------------
-    lessons_resp = client.get(f"/api/v1/learning/courses/{course_id}/lessons", headers=employee_headers)
+    lessons_resp = client.get(
+        f"/api/v1/learning/courses/{course_id}/lessons", headers=employee_headers
+    )
     assert lessons_resp.status_code == 200
     lessons = lessons_resp.json()
     assert len(lessons) > 0
 
     first_lesson_id = lessons[0]["id"]
-    open_resp = client.post(f"/api/v1/learning/lessons/{first_lesson_id}/open", headers=employee_headers)
+    open_resp = client.post(
+        f"/api/v1/learning/lessons/{first_lesson_id}/open", headers=employee_headers
+    )
     assert open_resp.status_code == 200
     open_json = open_resp.json()
     assert open_json["resource_opened"] is True
@@ -169,8 +173,11 @@ def test_complete_recommendation_to_outcome_workflow(
     # -------------------------------------------------------------------------
     # 7. Lessons Completion: Employee completes all required lessons
     # -------------------------------------------------------------------------
-    for l in lessons:
-        comp_resp = client.post(f"/api/v1/learning/lessons/{l['id']}/complete", headers=employee_headers)
+    for lesson in lessons:
+        comp_resp = client.post(
+            f"/api/v1/learning/lessons/{lesson['id']}/complete",
+            headers=employee_headers,
+        )
         assert comp_resp.status_code == 200
 
     # -------------------------------------------------------------------------
@@ -180,7 +187,9 @@ def test_complete_recommendation_to_outcome_workflow(
     assert quiz is not None
 
     questions = db_session.scalars(
-        select(QuizQuestion).where(QuizQuestion.quiz_id == quiz.id).order_by(QuizQuestion.order_index.asc())
+        select(QuizQuestion)
+        .where(QuizQuestion.quiz_id == quiz.id)
+        .order_by(QuizQuestion.order_index.asc())
     ).all()
     assert len(questions) > 0
 

@@ -10,12 +10,9 @@ Automated tests for Learning Module:
 
 from datetime import date
 from decimal import Decimal
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from app.database import EnrollmentStatus, UserRole
+import pytest
+from app.database import DifficultyLevel, EnrollmentStatus, TrainingMode
 from app.models import (
     CourseLesson,
     CourseQuiz,
@@ -25,6 +22,9 @@ from app.models import (
     TrainingEnrollment,
     User,
 )
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 
 def test_my_courses_list_authenticated_employee(client: TestClient, employee_headers: dict):
@@ -44,9 +44,13 @@ def test_my_courses_list_authenticated_employee(client: TestClient, employee_hea
     assert "total_lessons" in first
 
 
-def test_course_details_and_lessons(client: TestClient, employee_headers: dict, db_session: Session):
+def test_course_details_and_lessons(
+    client: TestClient, employee_headers: dict, db_session: Session
+):
     """Employee can view course lessons and learning materials."""
-    course = db_session.scalars(select(TrainingCourse).where(TrainingCourse.is_active == True)).first()
+    course = db_session.scalars(
+        select(TrainingCourse).where(TrainingCourse.is_active == True)
+    ).first()
     assert course is not None
 
     resp = client.get(f"/api/v1/learning/courses/{course.id}/lessons", headers=employee_headers)
@@ -64,13 +68,17 @@ def test_course_details_and_lessons(client: TestClient, employee_headers: dict, 
     assert "is_completed" in first_lesson
 
 
-def test_lesson_completion_and_progress_recalculation(client: TestClient, employee_headers: dict, db_session: Session):
+def test_lesson_completion_and_progress_recalculation(
+    client: TestClient, employee_headers: dict, db_session: Session
+):
     """Employee can mark required lessons complete and progress % updates server-side."""
     emp_user = db_session.scalars(select(User).where(User.username == "demo")).first()
     assert emp_user is not None and emp_user.employee_profile is not None
     emp_id = emp_user.employee_profile.id
 
-    course = db_session.scalars(select(TrainingCourse).where(TrainingCourse.is_active == True)).first()
+    course = db_session.scalars(
+        select(TrainingCourse).where(TrainingCourse.is_active == True)
+    ).first()
     assert course is not None
 
     enrollment = db_session.scalars(
@@ -96,7 +104,7 @@ def test_lesson_completion_and_progress_recalculation(client: TestClient, employ
     lessons = resp.json()
     assert len(lessons) > 0
 
-    target_lesson = next((l for l in lessons if not l["is_completed"]), lessons[0])
+    target_lesson = next((lesson for lesson in lessons if not lesson["is_completed"]), lessons[0])
 
     complete_resp = client.post(
         f"/api/v1/learning/lessons/{target_lesson['id']}/complete",
@@ -107,19 +115,27 @@ def test_lesson_completion_and_progress_recalculation(client: TestClient, employ
     assert comp_data["is_completed"] is True
 
     # Verify persistence: re-fetch course lessons
-    recheck_resp = client.get(f"/api/v1/learning/courses/{course.id}/lessons", headers=employee_headers)
+    recheck_resp = client.get(
+        f"/api/v1/learning/courses/{course.id}/lessons", headers=employee_headers
+    )
     recheck_lessons = recheck_resp.json()
-    updated_lesson = next(l for l in recheck_lessons if l["id"] == target_lesson["id"])
+    updated_lesson = next(
+        lesson for lesson in recheck_lessons if lesson["id"] == target_lesson["id"]
+    )
     assert updated_lesson["is_completed"] is True
 
 
-def test_prevent_duplicate_lesson_completion(client: TestClient, employee_headers: dict, db_session: Session):
+def test_prevent_duplicate_lesson_completion(
+    client: TestClient, employee_headers: dict, db_session: Session
+):
     """Completing the same lesson twice is idempotent and does not corrupt progress %."""
     emp_user = db_session.scalars(select(User).where(User.username == "demo")).first()
     assert emp_user is not None and emp_user.employee_profile is not None
     emp_id = emp_user.employee_profile.id
 
-    course = db_session.scalars(select(TrainingCourse).where(TrainingCourse.is_active == True)).first()
+    course = db_session.scalars(
+        select(TrainingCourse).where(TrainingCourse.is_active == True)
+    ).first()
     assert course is not None
 
     enrollment = db_session.scalars(
@@ -165,7 +181,9 @@ def test_prevent_duplicate_lesson_completion(client: TestClient, employee_header
     assert target_prog1["progress_percentage"] == target_prog2["progress_percentage"]
 
 
-def test_validate_lesson_belongs_to_course(client: TestClient, employee_headers: dict, db_session: Session):
+def test_validate_lesson_belongs_to_course(
+    client: TestClient, employee_headers: dict, db_session: Session
+):
     """Submitting a lesson ID for a course the employee is not enrolled in returns 400 Bad Request."""
     emp_user = db_session.scalars(select(User).where(User.username == "demo")).first()
     assert emp_user is not None and emp_user.employee_profile is not None
@@ -174,7 +192,9 @@ def test_validate_lesson_belongs_to_course(client: TestClient, employee_headers:
     # Find an active lesson belonging to any course where demo employee is NOT enrolled
     enrolled_course_ids = set(
         db_session.scalars(
-            select(TrainingEnrollment.training_course_id).where(TrainingEnrollment.employee_id == emp_id)
+            select(TrainingEnrollment.training_course_id).where(
+                TrainingEnrollment.employee_id == emp_id
+            )
         ).all()
     )
 
@@ -233,7 +253,9 @@ def test_resource_opened_tracking_does_not_mark_complete(
     assert course is not None
 
     lessons = db_session.scalars(
-        select(CourseLesson).where(CourseLesson.course_id == course.id).order_by(CourseLesson.order_index.asc())
+        select(CourseLesson)
+        .where(CourseLesson.course_id == course.id)
+        .order_by(CourseLesson.order_index.asc())
     ).all()
     assert len(lessons) > 0
     target_lesson = lessons[0]
@@ -249,16 +271,18 @@ def test_resource_opened_tracking_does_not_mark_complete(
     assert open_data["opened_at"] is not None
 
     # Check lesson details list to ensure persistence
-    list_resp = client.get(f"/api/v1/learning/courses/{course.id}/lessons", headers=employee_headers)
+    list_resp = client.get(
+        f"/api/v1/learning/courses/{course.id}/lessons", headers=employee_headers
+    )
     assert list_resp.status_code == 200
-    matched = next(l for l in list_resp.json() if l["id"] == str(target_lesson.id))
+    matched = next(lesson for lesson in list_resp.json() if lesson["id"] == str(target_lesson.id))
     assert matched["resource_opened"] is True
 
 
 def test_resource_url_validation_rules():
     """Schemas enforce valid HTTP/HTTPS URLs with hostname, rejecting malicious schemes."""
-    from pydantic import ValidationError
     from app.schemas.learning import CourseResourceCreateRequest
+    from pydantic import ValidationError
 
     # Valid URLs
     valid_yt = CourseResourceCreateRequest(
@@ -341,7 +365,9 @@ def test_quiz_failing_score_threshold_does_not_pass(
     db_session.commit()
 
     questions = db_session.scalars(
-        select(QuizQuestion).where(QuizQuestion.quiz_id == quiz.id).order_by(QuizQuestion.order_index.asc())
+        select(QuizQuestion)
+        .where(QuizQuestion.quiz_id == quiz.id)
+        .order_by(QuizQuestion.order_index.asc())
     ).all()
     assert len(questions) >= 2
 
@@ -366,7 +392,9 @@ def test_hr_admin_can_manage_course_resources(
     client: TestClient, admin_headers: dict, employee_headers: dict, db_session: Session
 ):
     """HR Admin can create, update, and delete course learning resources; regular employees are forbidden."""
-    course = db_session.scalars(select(TrainingCourse).where(TrainingCourse.is_active == True)).first()
+    course = db_session.scalars(
+        select(TrainingCourse).where(TrainingCourse.is_active == True)
+    ).first()
     assert course is not None
 
     payload = {
@@ -422,7 +450,9 @@ def test_hr_admin_can_manage_course_resources(
     assert del_resp.status_code == 200
 
 
-def test_quiz_answers_not_leaked_before_submission(client: TestClient, employee_headers: dict, db_session: Session):
+def test_quiz_answers_not_leaked_before_submission(
+    client: TestClient, employee_headers: dict, db_session: Session
+):
     """Quiz API must never leak `is_correct` flags to the frontend prior to submission."""
     quiz = db_session.scalars(select(CourseQuiz)).first()
     assert quiz is not None
@@ -441,7 +471,9 @@ def test_quiz_answers_not_leaked_before_submission(client: TestClient, employee_
             assert "option_text" in opt
 
 
-def test_quiz_submission_and_server_scoring(client: TestClient, employee_headers: dict, db_session: Session):
+def test_quiz_submission_and_server_scoring(
+    client: TestClient, employee_headers: dict, db_session: Session
+):
     """Quiz answers are scored strictly on the server with explanations provided post-submission."""
     emp_user = db_session.scalars(select(User).where(User.username == "demo")).first()
     assert emp_user is not None and emp_user.employee_profile is not None
@@ -472,7 +504,9 @@ def test_quiz_submission_and_server_scoring(client: TestClient, employee_headers
 
     # Fetch questions and find correct options directly from DB for test assertion
     questions = db_session.scalars(
-        select(QuizQuestion).where(QuizQuestion.quiz_id == quiz.id).order_by(QuizQuestion.order_index.asc())
+        select(QuizQuestion)
+        .where(QuizQuestion.quiz_id == quiz.id)
+        .order_by(QuizQuestion.order_index.asc())
     ).all()
     assert len(questions) > 0
 
@@ -556,7 +590,10 @@ def test_course_completion_requires_both_lessons_and_quiz(
 
     # Clear previous completions and attempts for SQL course to ensure isolated test state
     from app.models import LessonCompletion
-    db_session.query(LessonCompletion).filter(LessonCompletion.enrollment_id == enrollment.id).delete()
+
+    db_session.query(LessonCompletion).filter(
+        LessonCompletion.enrollment_id == enrollment.id
+    ).delete()
     db_session.query(QuizAttempt).filter(QuizAttempt.enrollment_id == enrollment.id).delete()
     db_session.commit()
 
@@ -576,7 +613,9 @@ def test_course_completion_requires_both_lessons_and_quiz(
     quiz = db_session.scalars(select(CourseQuiz).where(CourseQuiz.course_id == course.id)).first()
     assert quiz is not None
     questions = db_session.scalars(
-        select(QuizQuestion).where(QuizQuestion.quiz_id == quiz.id).order_by(QuizQuestion.order_index.asc())
+        select(QuizQuestion)
+        .where(QuizQuestion.quiz_id == quiz.id)
+        .order_by(QuizQuestion.order_index.asc())
     ).all()
     answers = []
     for q in questions:
@@ -615,7 +654,9 @@ def test_completed_course_can_be_reopened_and_reviewed(
     assert course is not None
 
     # Lessons endpoint must still return all lessons
-    lessons_resp = client.get(f"/api/v1/learning/courses/{course.id}/lessons", headers=employee_headers)
+    lessons_resp = client.get(
+        f"/api/v1/learning/courses/{course.id}/lessons", headers=employee_headers
+    )
     assert lessons_resp.status_code == 200
     lessons_data = lessons_resp.json()
     assert len(lessons_data) > 0
@@ -664,7 +705,3 @@ def test_progress_percentage_clean_decimal_formatting(
         prog_str = str(enr["progress_percentage"])
         assert "99999999" not in prog_str
         assert "00000001" not in prog_str
-
-
-
-

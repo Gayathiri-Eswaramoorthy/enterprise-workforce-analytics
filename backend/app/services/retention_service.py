@@ -5,7 +5,7 @@ Retention service for managing employee intervention lifecycles and retention ou
 from uuid import UUID
 
 from app.database import InterventionStatus, RecommendationStatus, RetentionOutcome
-from app.models import Employee, Recommendation, RetentionIntervention, User
+from app.models import Employee, Recommendation, RetentionIntervention
 from app.schemas.retention import (
     RetentionInterventionCreate,
     RetentionInterventionResponse,
@@ -74,7 +74,9 @@ class RetentionService:
                 selectinload(RetentionIntervention.employee).selectinload(Employee.job_role),
                 selectinload(RetentionIntervention.hr_user),
             )
-            .order_by(RetentionIntervention.offered_date.desc(), RetentionIntervention.created_at.desc())
+            .order_by(
+                RetentionIntervention.offered_date.desc(), RetentionIntervention.created_at.desc()
+            )
         )
 
         if employee_id:
@@ -129,7 +131,5 @@ class RetentionService:
             if emp.job_role:
                 resp.job_title = emp.job_role.title
         if intervention.hr_user:
-            resp.hr_user_name = (
-                intervention.hr_user.display_name or intervention.hr_user.username
-            )
+            resp.hr_user_name = intervention.hr_user.display_name or intervention.hr_user.username
         return resp

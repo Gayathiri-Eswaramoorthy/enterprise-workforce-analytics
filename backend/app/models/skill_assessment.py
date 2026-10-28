@@ -11,11 +11,13 @@ from app.database import AssessmentType, BaseModel
 from sqlalchemy import (
     CheckConstraint,
     Date,
-    Enum as SAEnum,
     ForeignKey,
     Integer,
     Numeric,
     Text,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship

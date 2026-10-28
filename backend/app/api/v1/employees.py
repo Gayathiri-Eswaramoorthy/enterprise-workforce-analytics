@@ -189,11 +189,15 @@ def list_my_discussion_requests(
 )
 def list_all_discussion_requests(
     employee_id: UUID | None = Query(None, description="Filter by employee"),
-    status_filter: str | None = Query(None, alias="status", description="Filter by status (PENDING, REVIEWED, RESOLVED)"),
+    status_filter: str | None = Query(
+        None, alias="status", description="Filter by status (PENDING, REVIEWED, RESOLVED)"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_hr),
 ) -> list[EmployeeRequestResponse]:
-    return request_service.list_requests(db=db, employee_id=employee_id, status_filter=status_filter)
+    return request_service.list_requests(
+        db=db, employee_id=employee_id, status_filter=status_filter
+    )
 
 
 @router.patch(

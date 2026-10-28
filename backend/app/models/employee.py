@@ -22,8 +22,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 if TYPE_CHECKING:
     from app.models.department import Department
     from app.models.employee_document import EmployeeDocument
-    from app.models.employee_skill import EmployeeSkill
     from app.models.employee_request import EmployeeRequest
+    from app.models.employee_skill import EmployeeSkill
     from app.models.job_role import JobRole
     from app.models.lesson_completion import LessonCompletion
     from app.models.performance_review import PerformanceReview

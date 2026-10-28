@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.database import BaseModel
-from sqlalchemy import Boolean, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

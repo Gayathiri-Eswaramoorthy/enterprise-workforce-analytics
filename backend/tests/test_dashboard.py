@@ -66,7 +66,9 @@ def test_individual_notification_read_persistence(
     db_session.refresh(n2)
 
     # Check unread count before
-    count_before = client.get("/api/v1/notifications/unread-count", headers=admin_headers).json()["unread_count"]
+    count_before = client.get("/api/v1/notifications/unread-count", headers=admin_headers).json()[
+        "unread_count"
+    ]
     assert count_before >= 2
 
     # Mark only n1 as read
@@ -77,7 +79,9 @@ def test_individual_notification_read_persistence(
     assert patched_data["is_read"] is True
 
     # Check unread count after: must have decremented by 1
-    count_after = client.get("/api/v1/notifications/unread-count", headers=admin_headers).json()["unread_count"]
+    count_after = client.get("/api/v1/notifications/unread-count", headers=admin_headers).json()[
+        "unread_count"
+    ]
     assert count_after == count_before - 1
 
     # Verify n2 is still unread in DB

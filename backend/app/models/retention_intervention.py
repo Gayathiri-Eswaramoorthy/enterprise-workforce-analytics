@@ -7,7 +7,8 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from app.database import BaseModel, InterventionStatus, RetentionOutcome
-from sqlalchemy import Date, Enum as SAEnum, ForeignKey, String, Text
+from sqlalchemy import Date, ForeignKey, String, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
