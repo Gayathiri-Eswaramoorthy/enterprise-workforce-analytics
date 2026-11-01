@@ -16,6 +16,7 @@ engine = create_engine(
     settings.SQLALCHEMY_DATABASE_URI,
     pool_pre_ping=True,
     pool_recycle=3600,
+    connect_args={"connect_timeout": 3},
 )
 
 # Scoped session factory

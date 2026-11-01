@@ -17,6 +17,22 @@ echo "=========================================="
 echo " 🚀 Enterprise Workforce Analytics"
 echo "=========================================="
 
+# 0. Check and Start PostgreSQL Database if needed
+echo "Checking PostgreSQL service..."
+if ! nc -z localhost 5432 >/dev/null 2>&1; then
+  echo "PostgreSQL is not responding on port 5432. Starting PostgreSQL..."
+  brew services start postgresql@16 2>/dev/null || brew services start postgresql 2>/dev/null || true
+  for _ in {1..10}; do
+    if nc -z localhost 5432 >/dev/null 2>&1; then
+      echo "✅ PostgreSQL is now ready!"
+      break
+    fi
+    sleep 0.5
+  done
+else
+  echo "✅ PostgreSQL is running on port 5432."
+fi
+
 # 1. Start Backend API
 echo "Starting Backend (FastAPI on :8000)..."
 cd "$ROOT_DIR/backend"
