@@ -16,9 +16,9 @@ import {
   Target,
   TrendingUp,
   User,
-  UserRound,
   Users,
   ShieldCheck,
+  ShieldAlert,
   ChartColumn,
 } from "lucide-react";
 
@@ -53,30 +53,43 @@ const FEATURES = [
 const SAMPLE_ROWS = [
   {
     name: "Deborah Jackson",
-    role: "Product Manager",
+    role: "Staff Product Manager",
     risk: "High",
-    dot: "var(--risk-high)",
+    score: 88,
+    dot: "#ef4444",
     tag: "Action required",
-    tagTone: "#c81e1e",
-    tagBg: "#fde8e8",
+    tagTone: "#dc2626",
+    tagBg: "#fef2f2",
   },
   {
     name: "James Wilson",
-    role: "Enterprise Sales",
+    role: "Enterprise Sales Lead",
     risk: "Medium",
-    dot: "var(--risk-medium)",
-    tag: "Monitor",
-    tagTone: "#b45309",
-    tagBg: "#fdf0dc",
+    score: 64,
+    dot: "#f59e0b",
+    tag: "1:1 Scheduled",
+    tagTone: "#d97706",
+    tagBg: "#fffbeb",
+  },
+  {
+    name: "Marcus Chen",
+    role: "Senior DevOps Engineer",
+    risk: "High",
+    score: 79,
+    dot: "#ef4444",
+    tag: "Reviewing",
+    tagTone: "#dc2626",
+    tagBg: "#fef2f2",
   },
   {
     name: "Linda Anderson",
     role: "HR Business Partner",
     risk: "Low",
-    dot: "var(--risk-low)",
+    score: 18,
+    dot: "#10b981",
     tag: "On track",
-    tagTone: "#0b7a4b",
-    tagBg: "#e0f5ea",
+    tagTone: "#059669",
+    tagBg: "#ecfdf5",
   },
 ];
 
@@ -110,89 +123,33 @@ const initials = (name: string) =>
     .join("");
 
 /** Illustrative product preview:
- * 1) All 5 sub-cards perform exactly ONE full circle rotation in clockwise (right-side) motion
- * 2) Each card glides smoothly into its designated spot completely inside the base card
- * 3) Cards perform ghost loading shimmer
- * 4) Numbers count up from 0-n and sliders/bars fill up
+ * 1) All 5 sub-cards start slightly scattered/elevated outside the base card
+ * 2) Each card smoothly glides with continuous bezier curve into its designated spot in the base card
+ * 3) Live metrics and counters count up gracefully once landed
  */
 const HeroPreview: React.FC = () => {
-  const [stage, setStage] = useState<"scattered" | "docked" | "ghost" | "revealed">("scattered");
+  const [isDocked, setIsDocked] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(false);
 
   useEffect(() => {
-    let t1: ReturnType<typeof setTimeout>;
-    let t2: ReturnType<typeof setTimeout>;
-    let t3: ReturnType<typeof setTimeout>;
+    // 1. Initial gentle floating state outside base card, then smoothly dock
+    const t1 = setTimeout(() => {
+      setIsDocked(true);
+    }, 500);
 
-    const startDockingSequence = () => {
-      // Step 1: Keep cards scattered & levitating OUTSIDE the base card for 2000ms
-      t1 = setTimeout(() => {
-        setStage("docked");
-      }, 2000);
-
-      // Step 2: Once docked smoothly (2000ms + 1400ms glide = 3400ms), brief ghost skeleton shimmer
-      t2 = setTimeout(() => {
-        setStage("ghost");
-      }, 3400);
-
-      // Step 3: Live metrics reveal and numbers count up
-      t3 = setTimeout(() => {
-        setStage("revealed");
-      }, 4200);
-    };
-
-    // If page is still loading, wait until window load completes before starting docking sequence!
-    if (document.readyState === "complete") {
-      startDockingSequence();
-    } else {
-      window.addEventListener("load", startDockingSequence, { once: true });
-    }
+    // 2. Once the glide starts settling, smoothly reveal live metrics & counter animations
+    const t2 = setTimeout(() => {
+      setIsRevealed(true);
+    }, 1400);
 
     return () => {
-      window.removeEventListener("load", startDockingSequence);
-      if (t1) clearTimeout(t1);
-      if (t2) clearTimeout(t2);
-      if (t3) clearTimeout(t3);
+      clearTimeout(t1);
+      clearTimeout(t2);
     };
   }, []);
 
-  const isDocked = stage !== "scattered";
-  const isGhost = stage === "ghost";
-  const isRevealed = stage === "revealed";
-
   return (
     <div className="relative mx-auto mt-8 h-[460px] w-full max-w-[840px] select-none" aria-hidden="true">
-      <style>{`
-        @keyframes ghostShimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        .ghost-skeleton {
-          background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-          background-size: 200% 100%;
-          animation: ghostShimmer 1.4s infinite ease-in-out;
-        }
-        @keyframes levitate1 {
-          0%, 100% { transform: translate(-95px, -105px) rotate(-10deg) scale(0.94); }
-          50% { transform: translate(-95px, -120px) rotate(-9deg) scale(0.95); }
-        }
-        @keyframes levitate2 {
-          0%, 100% { transform: translate(95px, -105px) rotate(10deg) scale(0.94); }
-          50% { transform: translate(95px, -120px) rotate(11deg) scale(0.95); }
-        }
-        @keyframes levitate3 {
-          0%, 100% { transform: translate(-100px, 10px) rotate(-8deg) scale(0.94); }
-          50% { transform: translate(-104px, 0px) rotate(-7deg) scale(0.95); }
-        }
-        @keyframes levitate4 {
-          0%, 100% { transform: translate(-90px, 105px) rotate(8deg) scale(0.94); }
-          50% { transform: translate(-90px, 118px) rotate(7deg) scale(0.95); }
-        }
-        @keyframes levitate5 {
-          0%, 100% { transform: translate(90px, 100px) rotate(-7deg) scale(0.94); }
-          50% { transform: translate(94px, 114px) rotate(-6deg) scale(0.95); }
-        }
-      `}</style>
-
       {/* Base background main card — clean canvas frame that holds the sub cards */}
       <div className="absolute inset-0 rounded-[24px] border border-indigo-200/60 bg-gradient-to-br from-white/95 via-indigo-50/20 to-purple-50/30 shadow-[0_24px_60px_-15px_rgba(79,70,229,0.18)] pointer-events-none" />
 
@@ -200,207 +157,282 @@ const HeroPreview: React.FC = () => {
 
       {/* Card 1: At risk — Top-Left (16, 16, 396×136) */}
       <div
-        className="absolute z-10 rounded-xl bg-white p-4 border border-slate-200/70"
+        className="absolute z-10 rounded-xl bg-white p-4 border border-slate-200/70 flex flex-col justify-between"
         style={{
           left: 16,
           top: 16,
           width: 396,
           height: 136,
-          animation: !isDocked ? "levitate1 2.4s ease-in-out infinite" : "none",
-          transform: isDocked ? "translate(0px, 0px) rotate(0deg) scale(1)" : undefined,
+          transform: isDocked
+            ? "translate3d(0px, 0px, 0px) rotate(0deg) scale(1)"
+            : "translate3d(-52px, -36px, 0px) rotate(-5.5deg) scale(0.96)",
           boxShadow: isDocked
-            ? "0 4px 12px -4px rgba(30, 27, 75, 0.08)"
-            : "0 32px 60px -15px rgba(79, 70, 229, 0.35)",
-          opacity: isDocked ? 1 : 0.92,
-          transition: "transform 1.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.4s ease, opacity 0.8s ease",
+            ? "0 4px 14px -3px rgba(30, 27, 75, 0.08), 0 1px 3px 0 rgba(30, 27, 75, 0.04)"
+            : "0 32px 64px -16px rgba(79, 70, 229, 0.35)",
+          opacity: isDocked ? 1 : 0.9,
+          transition: "transform 1.7s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.7s ease, opacity 1.2s ease",
+          transitionDelay: isDocked ? "0ms" : "0ms",
         }}
       >
-        <p className="text-[11.5px] font-semibold text-slate-800">At risk of leaving</p>
-        <div className="mt-1 flex items-end justify-between">
-          <div>
-            {isGhost ? (
-              <div className="space-y-1.5">
-                <div className="h-6 w-20 rounded-lg ghost-skeleton" />
-                <div className="h-2.5 w-28 rounded ghost-skeleton" />
-              </div>
-            ) : (
-              <>
-                <p className="flex items-baseline gap-1.5">
-                  <span className="text-[24px] font-bold leading-none text-slate-900 tabular-nums">
-                    {isRevealed ? <AnimatedCounter value={10} duration={850} /> : 0}
-                  </span>
-                  <span className="text-[12.5px] text-slate-500">/ 50</span>
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">
-                    ↑ 20%
-                  </span>
-                </p>
-                <p className="mt-1 text-[10px] text-slate-500">High or critical risk</p>
-              </>
-            )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-rose-50 text-rose-600">
+              <ShieldAlert className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[11.5px] font-semibold text-slate-800">Flight Risk Attrition</span>
           </div>
-          <div className="flex h-10 items-end gap-1.5 pb-0.5">
-            {[10, 18, 26, 38, 30, 46].map((h, i) => (
+          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[9.5px] font-semibold text-rose-700 border border-rose-200/60">
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+            High Priority
+          </span>
+        </div>
+
+        <div className="mt-1 flex items-center justify-between">
+          <div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[22px] font-bold leading-none text-slate-900 tabular-nums">
+                {isRevealed ? <AnimatedCounter value={10} duration={850} /> : 0}
+              </span>
+              <span className="text-[12px] text-slate-400 font-medium">/ 50 monitored</span>
+              <span className="inline-flex items-center rounded-full bg-rose-50 px-1.5 py-0.2 text-[9.5px] font-semibold text-rose-600">
+                ↑ 20%
+              </span>
+            </div>
+            <p className="mt-0.5 text-[10px] text-slate-500">Predicted attrition in next 60 days</p>
+          </div>
+          <div className="flex h-8 items-end gap-1.5 pb-0.5">
+            {[14, 22, 30, 44, 34, 52].map((h, i) => (
               <span
                 key={i}
                 className="w-2.5 rounded-t transition-all duration-1000 ease-out"
                 style={{
-                  height: isGhost ? "14px" : isRevealed ? `${h * 0.7}px` : "4px",
-                  background: isGhost ? "#cbd5e1" : i === 0 ? "#f9a8a8" : `rgb(129 120 245 / ${0.35 + i * 0.1})`,
+                  height: isRevealed ? `${h * 0.55}px` : "4px",
+                  background: i === 5 ? "#ef4444" : i >= 3 ? "#f97316" : `rgb(99 102 241 / ${0.35 + i * 0.1})`,
                 }}
               />
             ))}
           </div>
         </div>
+
+        <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[9.5px]">
+          <div className="flex items-center gap-2 text-slate-600">
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+              Eng: <b className="text-slate-800">4</b>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              Sales: <b className="text-slate-800">3</b>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+              Product: <b className="text-slate-800">2</b>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+              Ops: <b className="text-slate-800">1</b>
+            </span>
+          </div>
+          <span className="text-rose-600 font-medium">3 leadership leads</span>
+        </div>
       </div>
 
       {/* Card 3: Critical skill gaps — Mid-Left (16, 164, 396×132) */}
       <div
-        className="absolute z-10 rounded-xl bg-white p-4 border border-slate-200/70"
+        className="absolute z-10 rounded-xl bg-white p-4 border border-slate-200/70 flex flex-col justify-between"
         style={{
           left: 16,
           top: 164,
           width: 396,
           height: 132,
-          animation: !isDocked ? "levitate3 2.6s ease-in-out infinite" : "none",
-          transform: isDocked ? "translate(0px, 0px) rotate(0deg) scale(1)" : undefined,
+          transform: isDocked
+            ? "translate3d(0px, 0px, 0px) rotate(0deg) scale(1)"
+            : "translate3d(-58px, 10px, 0px) rotate(-4.5deg) scale(0.96)",
           boxShadow: isDocked
-            ? "0 4px 12px -4px rgba(30, 27, 75, 0.08)"
-            : "0 32px 60px -15px rgba(79, 70, 229, 0.35)",
-          opacity: isDocked ? 1 : 0.92,
-          transition: "transform 1.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.4s ease, opacity 0.8s ease",
+            ? "0 4px 14px -3px rgba(30, 27, 75, 0.08), 0 1px 3px 0 rgba(30, 27, 75, 0.04)"
+            : "0 32px 64px -16px rgba(79, 70, 229, 0.35)",
+          opacity: isDocked ? 1 : 0.9,
+          transition: "transform 1.7s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.7s ease, opacity 1.2s ease",
+          transitionDelay: isDocked ? "180ms" : "0ms",
         }}
       >
         <div className="flex items-center justify-between">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
-            <span className="flex h-4.5 w-4.5 items-center justify-center rounded bg-indigo-50 text-indigo-600">
-              <Users className="h-3 w-3" />
+          <div className="flex items-center gap-1.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-50 text-amber-600">
+              <Users className="h-3.5 w-3.5" />
             </span>
-            Critical skill gaps
-          </p>
-          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9.5px] font-semibold text-amber-700">
-            Needs action
+            <span className="text-[11.5px] font-semibold text-slate-800">Critical Skill Gaps</span>
+          </div>
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9.5px] font-semibold text-amber-700 border border-amber-200/60">
+            Action Needed
           </span>
         </div>
-        {isGhost ? (
-          <div className="mt-2 space-y-1">
-            <div className="h-5 w-8 rounded ghost-skeleton" />
-            <div className="h-2 w-20 rounded ghost-skeleton" />
-          </div>
-        ) : (
-          <div className="mt-1.5 flex items-baseline justify-between">
-            <p className="text-[20px] font-bold leading-none text-slate-900 tabular-nums">
+
+        <div className="mt-1 flex items-baseline justify-between">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[22px] font-bold leading-none text-slate-900 tabular-nums">
               {isRevealed ? <AnimatedCounter value={5} duration={750} /> : 0}
-            </p>
-            <p className="text-[10px] text-slate-500">Key roles affected across teams</p>
+            </span>
+            <span className="text-[10.5px] text-slate-500">Key competency deficits</span>
           </div>
-        )}
+          <div className="flex items-center gap-1 text-[9.5px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            3 In Upskilling
+          </div>
+        </div>
+
+        <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-semibold text-rose-700 border border-rose-200/50">
+              Kubernetes (-35%)
+            </span>
+            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800 border border-amber-200/50">
+              System Design (-28%)
+            </span>
+            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-700 border border-indigo-200/50">
+              Data Gov (-20%)
+            </span>
+          </div>
+          <span className="text-[9px] font-medium text-indigo-600">Curricula ready →</span>
+        </div>
       </div>
 
       {/* Card 4: Training completion — Bottom-Left (16, 308, 396×136) */}
       <div
-        className="absolute z-10 rounded-xl bg-white p-4 border border-slate-200/70"
+        className="absolute z-10 rounded-xl bg-white p-4 border border-slate-200/70 flex flex-col justify-between"
         style={{
           left: 16,
           top: 308,
           width: 396,
           height: 136,
-          animation: !isDocked ? "levitate4 2.8s ease-in-out infinite" : "none",
-          transform: isDocked ? "translate(0px, 0px) rotate(0deg) scale(1)" : undefined,
+          transform: isDocked
+            ? "translate3d(0px, 0px, 0px) rotate(0deg) scale(1)"
+            : "translate3d(-48px, 46px, 0px) rotate(4.5deg) scale(0.96)",
           boxShadow: isDocked
-            ? "0 4px 12px -4px rgba(30, 27, 75, 0.08)"
-            : "0 32px 60px -15px rgba(79, 70, 229, 0.35)",
-          opacity: isDocked ? 1 : 0.92,
-          transition: "transform 1.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.4s ease, opacity 0.8s ease",
+            ? "0 4px 14px -3px rgba(30, 27, 75, 0.08), 0 1px 3px 0 rgba(30, 27, 75, 0.04)"
+            : "0 32px 64px -16px rgba(79, 70, 229, 0.35)",
+          opacity: isDocked ? 1 : 0.9,
+          transition: "transform 1.7s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.7s ease, opacity 1.2s ease",
+          transitionDelay: isDocked ? "260ms" : "0ms",
         }}
       >
         <div className="flex items-center justify-between">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
-            <span className="flex h-4.5 w-4.5 items-center justify-center rounded bg-emerald-50 text-emerald-600">
-              <UserRound className="h-3 w-3" />
+          <div className="flex items-center gap-1.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
+              <GraduationCap className="h-3.5 w-3.5" />
             </span>
-            Training completion
-          </p>
-          <p className="text-[9.5px] text-emerald-600 font-medium">↑ 12% mo.</p>
-        </div>
-        {isGhost ? (
-          <div className="mt-2 space-y-1">
-            <div className="h-5 w-12 rounded ghost-skeleton" />
-            <div className="h-2 w-20 rounded ghost-skeleton" />
+            <span className="text-[11.5px] font-semibold text-slate-800">L&D Training Velocity</span>
           </div>
-        ) : (
-          <div className="mt-1.5 flex items-baseline justify-between">
-            <div className="flex items-center gap-1">
+          <span className="text-[9.5px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/50">
+            ↑ 12% MoM
+          </span>
+        </div>
+
+        <div>
+          <div className="flex items-baseline justify-between">
+            <div className="flex items-center gap-1.5">
               <span className="text-[20px] font-bold leading-none text-slate-900 tabular-nums">
                 {isRevealed ? <AnimatedCounter value={68} duration={950} suffix="%" /> : "0%"}
               </span>
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+              <span className="text-[10px] text-slate-500">34 of 50 completed</span>
             </div>
-            <p className="text-[10px] text-slate-500">Modules completed</p>
+            <span className="text-[9.5px] font-medium text-emerald-600 flex items-center gap-0.5">
+              <TrendingUp className="h-3 w-3" /> On Track
+            </span>
           </div>
-        )}
+
+          <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-1000 ease-out"
+              style={{ width: isRevealed ? "68%" : "0%" }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-1 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[9.5px] text-slate-500">
+          <span>Avg Score: <strong className="text-slate-700">89%</strong></span>
+          <span>•</span>
+          <span>Hours: <strong className="text-slate-700">142h</strong></span>
+          <span>•</span>
+          <span>Cohort: <strong className="text-emerald-600">82%</strong></span>
+          <span>•</span>
+          <span>Certs: <strong className="text-indigo-600">18</strong></span>
+        </div>
       </div>
 
       {/* ===================== RIGHT COLUMN (width: 396px) ===================== */}
 
       {/* Card 2: Skill alignment — Top-Right (428, 16, 396×136) */}
       <div
-        className="absolute z-10 rounded-xl bg-white p-4 border border-slate-200/70"
+        className="absolute z-10 rounded-xl bg-white p-4 border border-slate-200/70 flex flex-col justify-between"
         style={{
           left: 428,
           top: 16,
           width: 396,
           height: 136,
-          animation: !isDocked ? "levitate2 2.5s ease-in-out infinite" : "none",
-          transform: isDocked ? "translate(0px, 0px) rotate(0deg) scale(1)" : undefined,
+          transform: isDocked
+            ? "translate3d(0px, 0px, 0px) rotate(0deg) scale(1)"
+            : "translate3d(52px, -36px, 0px) rotate(5.5deg) scale(0.96)",
           boxShadow: isDocked
-            ? "0 4px 12px -4px rgba(30, 27, 75, 0.08)"
-            : "0 32px 60px -15px rgba(79, 70, 229, 0.35)",
-          opacity: isDocked ? 1 : 0.92,
-          transition: "transform 1.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.4s ease, opacity 0.8s ease",
+            ? "0 4px 14px -3px rgba(30, 27, 75, 0.08), 0 1px 3px 0 rgba(30, 27, 75, 0.04)"
+            : "0 32px 64px -16px rgba(79, 70, 229, 0.35)",
+          opacity: isDocked ? 1 : 0.9,
+          transition: "transform 1.7s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.7s ease, opacity 1.2s ease",
+          transitionDelay: isDocked ? "100ms" : "0ms",
         }}
       >
-        <p className="text-[11.5px] font-semibold text-slate-700">Skill alignment</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
+              <Target className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[11.5px] font-semibold text-slate-800">Skill Alignment Index</span>
+          </div>
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[9.5px] font-semibold text-emerald-700 border border-emerald-200/60">
+            +4% ahead
+          </span>
+        </div>
+
         <div className="mt-1 flex items-center justify-between">
-          {isGhost ? (
-            <div className="flex items-center gap-2.5">
-              <div className="h-10 w-10 rounded-full ghost-skeleton" />
-              <div className="space-y-1">
-                <div className="h-3.5 w-10 rounded ghost-skeleton" />
-                <div className="h-2 w-14 rounded ghost-skeleton" />
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center gap-2.5">
-                <svg viewBox="0 0 48 48" className="h-10 w-10 -rotate-90 flex-shrink-0">
-                  <circle cx="24" cy="24" r="19" fill="none" stroke="#dff3e8" strokeWidth="5.5" />
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="19"
-                    fill="none"
-                    stroke="#10b981"
-                    strokeWidth="5.5"
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-out"
-                    strokeDasharray={`${(isRevealed ? 0.94 : 0.05) * 2 * Math.PI * 19} ${2 * Math.PI * 19}`}
-                  />
-                </svg>
-                <div>
-                  <p className="text-[18px] font-bold leading-none text-slate-900 tabular-nums">
-                    {isRevealed ? <AnimatedCounter value={94} duration={950} suffix="%" /> : "0%"}
-                  </p>
-                  <p className="mt-0.5 text-[9.5px] text-slate-500">Target: 90%</p>
-                </div>
-              </div>
-              <div className="text-right border-l border-slate-100 pl-3">
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[9.5px] font-semibold text-emerald-600">
-                  +4% ahead
+          <div className="flex items-center gap-2.5">
+            <svg viewBox="0 0 48 48" className="h-9 w-9 -rotate-90 flex-shrink-0">
+              <circle cx="24" cy="24" r="19" fill="none" stroke="#e2f5ea" strokeWidth="5" />
+              <circle
+                cx="24"
+                cy="24"
+                r="19"
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="5"
+                strokeLinecap="round"
+                className="transition-all duration-1000 ease-out"
+                strokeDasharray={`${(isRevealed ? 0.94 : 0.05) * 2 * Math.PI * 19} ${2 * Math.PI * 19}`}
+              />
+            </svg>
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-[19px] font-bold leading-none text-slate-900 tabular-nums">
+                  {isRevealed ? <AnimatedCounter value={94} duration={950} suffix="%" /> : "0%"}
                 </span>
-                <p className="mt-0.5 text-[9.5px] text-slate-400">All Depts</p>
+                <span className="text-[10px] text-slate-500">Target: 90%</span>
               </div>
-            </>
-          )}
+              <p className="mt-0.5 text-[9px] text-slate-400">All 8 Departments</p>
+            </div>
+          </div>
+
+          <div className="text-right border-l border-slate-100 pl-3 space-y-0.5 text-[9.5px]">
+            <div className="font-semibold text-slate-700">Engineering: <span className="text-emerald-600">96%</span></div>
+            <div className="font-semibold text-slate-700">Product & UX: <span className="text-emerald-600">92%</span></div>
+          </div>
+        </div>
+
+        <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[9.5px]">
+          <span className="text-slate-500 font-medium">Top Strengths:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-700">Cloud Arch 98%</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-700">GenAI / ML 94%</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-700">System Eng 91%</span>
+          </div>
         </div>
       </div>
 
@@ -412,59 +444,80 @@ const HeroPreview: React.FC = () => {
           top: 164,
           width: 396,
           height: 280,
-          animation: !isDocked ? "levitate5 2.7s ease-in-out infinite" : "none",
-          transform: isDocked ? "translate(0px, 0px) rotate(0deg) scale(1)" : undefined,
+          transform: isDocked
+            ? "translate3d(0px, 0px, 0px) rotate(0deg) scale(1)"
+            : "translate3d(52px, 42px, 0px) rotate(-4.5deg) scale(0.96)",
           boxShadow: isDocked
-            ? "0 4px 12px -4px rgba(30, 27, 75, 0.08)"
-            : "0 32px 60px -15px rgba(79, 70, 229, 0.35)",
-          opacity: isDocked ? 1 : 0.92,
-          transition: "transform 1.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.4s ease, opacity 0.8s ease",
+            ? "0 4px 14px -3px rgba(30, 27, 75, 0.08), 0 1px 3px 0 rgba(30, 27, 75, 0.04)"
+            : "0 32px 64px -16px rgba(79, 70, 229, 0.35)",
+          opacity: isDocked ? 1 : 0.9,
+          transition: "transform 1.7s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 1.7s ease, opacity 1.2s ease",
+          transitionDelay: isDocked ? "340ms" : "0ms",
         }}
       >
-        <div className="border-b border-slate-100 pb-1 flex items-center justify-between text-[10.5px] font-semibold text-slate-500">
-          <span>Employee Retention Telemetry</span>
-          <span className="text-[9px] font-normal text-slate-400">Live Scored</span>
+        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+          <div className="flex items-center gap-1.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-50 text-indigo-600">
+              <ChartColumn className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[11.5px] font-semibold text-slate-800">Employee Retention Telemetry</span>
+          </div>
+          <div className="flex items-center gap-1 text-[9px] font-medium text-emerald-600">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Live Scored
+          </div>
         </div>
 
-        {isGhost ? (
-          <div className="space-y-2 py-1">
-            {[1, 2, 3].map((idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-full ghost-skeleton flex-shrink-0" />
-                <div className="space-y-1 w-[90px] flex-shrink-0">
-                  <div className="h-2.5 w-14 rounded ghost-skeleton" />
-                  <div className="h-2 w-10 rounded ghost-skeleton" />
-                </div>
-                <div className="h-2.5 w-8 rounded ghost-skeleton flex-shrink-0" />
-                <div className="ml-auto h-3.5 w-12 rounded-full ghost-skeleton" />
-              </div>
-            ))}
+        {/* Cohort status summary strip (fills previous empty space) */}
+        <div className="my-1 grid grid-cols-4 gap-1.5 rounded-lg bg-slate-50/80 p-1 text-center text-[9px]">
+          <div className="rounded bg-white py-0.5 px-1 shadow-2xs border border-slate-100">
+            <span className="text-slate-400 block text-[7.5px] uppercase tracking-wider">Cohort</span>
+            <strong className="text-slate-800 text-[10.5px] font-bold">50</strong>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-50">
-            {SAMPLE_ROWS.map((r) => (
-              <div key={r.name} className="flex items-center gap-1.5 py-1.5 text-[10.5px]">
-                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700">
-                  {initials(r.name)}
-                </span>
-                <span className="w-[100px] min-w-0 flex-shrink-0">
-                  <span className="block truncate font-semibold text-slate-800">{r.name}</span>
-                  <span className="block truncate text-[9px] text-slate-400">{r.role}</span>
-                </span>
-                <span className="flex w-[50px] flex-shrink-0 items-center gap-1 font-medium text-slate-600 text-[10px]">
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: r.dot }} />
-                  {r.risk}
-                </span>
-                <span
-                  className="ml-auto rounded-full px-1.5 py-0.5 text-[8.5px] font-semibold whitespace-nowrap"
-                  style={{ color: r.tagTone, background: r.tagBg }}
-                >
-                  {r.tag}
-                </span>
-              </div>
-            ))}
+          <div className="rounded bg-white py-0.5 px-1 shadow-2xs border border-rose-100">
+            <span className="text-rose-500 block text-[7.5px] uppercase tracking-wider font-semibold">High</span>
+            <strong className="text-rose-700 text-[10.5px] font-bold">10</strong>
           </div>
-        )}
+          <div className="rounded bg-white py-0.5 px-1 shadow-2xs border border-amber-100">
+            <span className="text-amber-500 block text-[7.5px] uppercase tracking-wider font-semibold">Medium</span>
+            <strong className="text-amber-700 text-[10.5px] font-bold">14</strong>
+          </div>
+          <div className="rounded bg-white py-0.5 px-1 shadow-2xs border border-emerald-100">
+            <span className="text-emerald-500 block text-[7.5px] uppercase tracking-wider font-semibold">Safe</span>
+            <strong className="text-emerald-700 text-[10.5px] font-bold">26</strong>
+          </div>
+        </div>
+
+        {/* 4 Telemetry Rows with rich metrics */}
+        <div className="divide-y divide-slate-100">
+          {SAMPLE_ROWS.map((r) => (
+            <div key={r.name} className="flex items-center gap-2 py-1.5 text-[10.5px]">
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[9.5px] font-bold text-indigo-700">
+                {initials(r.name)}
+              </span>
+              <div className="w-[110px] min-w-0 flex-shrink-0">
+                <span className="block truncate font-semibold text-slate-800 text-[10.5px] leading-tight">{r.name}</span>
+                <span className="block truncate text-[9px] text-slate-400">{r.role}</span>
+              </div>
+              <div className="flex items-center gap-1 text-[9.5px] font-medium text-slate-600 flex-shrink-0 w-[64px]">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: r.dot }} />
+                <span>{r.risk} ({r.score}%)</span>
+              </div>
+              <span
+                className="ml-auto rounded-full px-2 py-0.5 text-[8.5px] font-semibold whitespace-nowrap border"
+                style={{ color: r.tagTone, background: r.tagBg, borderColor: `${r.tagTone}30` }}
+              >
+                {r.tag}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="mt-0.5 pt-1 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-400">
+          <span>Model: <strong className="text-slate-600">XGBoost Ensemble v2.4</strong></span>
+          <span className="text-emerald-600 font-medium">94.8% AUC • Instant Alerting</span>
+        </div>
       </div>
     </div>
   );
