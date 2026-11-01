@@ -49,8 +49,6 @@ from app.models import (
 )
 from app.security import hash_password
 
-from ml.predict import predict_employee_risk
-
 # Employee record owned by the demo EMPLOYEE login (demo@workforce.local)
 DEMO_EMPLOYEE_CODE = "EMP-ENG-018"
 
@@ -1887,21 +1885,11 @@ def seed_database():
 
         new_predictions = []
         for emp in unscored_employees:
-            res = predict_employee_risk(emp)
-            history = PredictionHistory(
-                employee_id=emp.id,
-                model_registry_id=active_model.id,
-                prediction_type=PredictionType.ATTRITION,
-                prediction_score=Decimal(str(res["score"])),
-                confidence_score=Decimal(str(res["confidence"])),
-                risk_level=res["risk_level"],
-                prediction_result=res["result_str"],
-                prediction_reason=res["reason_str"],
+            new_predictions.append(
+                prediction_svc.predict_for_employee(
+                    db, emp.id, PredictionType.ATTRITION, active_model
+                )
             )
-            db.add(history)
-            new_predictions.append(history)
-
-        db.commit()
 
         created_recs = RecommendationService().generate_recommendations_for_all(db)
         print(
