@@ -247,8 +247,22 @@ export const UsersPage: React.FC = () => {
 
       {/* Users Table */}
       {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3" aria-busy="true">
+          <div className="skeleton h-8 w-full rounded-md" />
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex h-12 items-center gap-4 px-2">
+              <div className="skeleton h-4 w-6 rounded" />
+              <div className="skeleton h-8 w-8 rounded-full" />
+              <div className="space-y-1 w-44">
+                <div className="skeleton h-3.5 w-28 rounded" />
+                <div className="skeleton h-2.5 w-36 rounded" />
+              </div>
+              <div className="skeleton h-4 w-32 rounded" />
+              <div className="skeleton h-5 w-24 rounded-full" />
+              <div className="skeleton h-4 w-16 rounded" />
+              <div className="ml-auto skeleton h-7 w-14 rounded-md" />
+            </div>
+          ))}
         </div>
       ) : error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
@@ -259,6 +273,7 @@ export const UsersPage: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <th className="py-3 px-3 text-center w-12">S.No</th>
                 <th className="py-3 px-4">User</th>
                 <th className="py-3 px-4">Display Name & Profile</th>
                 <th className="py-3 px-4">Assigned Role</th>
@@ -270,16 +285,19 @@ export const UsersPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
                     No user accounts match the current filter.
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u) => {
+                filteredUsers.map((u, index) => {
                   const badge = ROLE_BADGE[u.role] || ROLE_BADGE.EMPLOYEE;
                   const BadgeIcon = badge.icon;
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3 px-3 text-center text-xs tabular-nums text-slate-400 font-mono">
+                        {index + 1}
+                      </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 font-semibold text-xs uppercase">

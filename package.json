@@ -1,0 +1,14 @@
+{
+  "name": "enterprise-workforce-analytics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise Workforce Analytics platform",
+  "scripts": {
+    "dev": "bash start.sh",
+    "start": "bash start.sh",
+    "dev:backend": "cd backend && (test -f .venv/bin/uvicorn && .venv/bin/uvicorn app.main:app --reload --port 8000 || uvicorn app.main:app --reload --port 8000)",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint"
+  }
+}

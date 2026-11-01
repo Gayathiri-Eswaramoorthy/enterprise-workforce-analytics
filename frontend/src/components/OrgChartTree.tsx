@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import type { Department, EmployeeListItem, RiskLevel } from "../types";
 import {
@@ -31,7 +31,26 @@ export const OrgChartTree: React.FC<OrgChartTreeProps> = ({ employees, departmen
   const [selectedDeptId, setSelectedDeptId] = useState<string>("all");
   const [riskClusterFilter, setRiskClusterFilter] = useState<"all" | "at_risk_only">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    employees.forEach((e) => {
+      if (e.manager_id) initial.add(e.manager_id);
+    });
+    return initial;
+  });
+
+  useEffect(() => {
+    if (employees.length > 0) {
+      setCollapsedNodes((prev) => {
+        if (prev.size > 0) return prev;
+        const managers = new Set<string>();
+        employees.forEach((e) => {
+          if (e.manager_id) managers.add(e.manager_id);
+        });
+        return managers;
+      });
+    }
+  }, [employees]);
 
   // Filter employees by department if one is selected
   const activeEmployees = useMemo(() => {

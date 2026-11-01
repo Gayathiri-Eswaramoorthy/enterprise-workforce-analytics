@@ -3,7 +3,6 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import api from "../services/api";
 import type { UserRole } from "../types";
-import { BrandMark } from "../components/BrandMark";
 import {
   Activity,
   Bell,
@@ -36,10 +35,10 @@ interface NavGroup {
 const ROLE_NAV_GROUPS: Record<UserRole, NavGroup[]> = {
   HR_ADMIN: [
     {
-      label: "System Administration",
+      label: "",
       items: [
         { to: "/", label: "System Overview", icon: LayoutDashboard },
-        { to: "/employees", label: "People / Employee Records", icon: Users },
+        { to: "/employees", label: "Employee Records", icon: Users },
         { to: "/departments", label: "Departments", icon: Building2 },
         { to: "/users", label: "Users & Roles", icon: ShieldCheck },
         { to: "/audit-logs", label: "Audit Log", icon: ScrollText },
@@ -58,7 +57,7 @@ const ROLE_NAV_GROUPS: Record<UserRole, NavGroup[]> = {
     {
       label: "People & Talent",
       items: [
-        { to: "/employees", label: "People", icon: Users },
+        { to: "/employees", label: "Employee Records", icon: Users },
         { to: "/departments", label: "Departments", icon: Building2 },
         { to: "/skills", label: "Skills & Skill Gaps", icon: Layers },
         { to: "/training", label: "Training & Learning Analytics", icon: GraduationCap },
@@ -195,17 +194,18 @@ export const Layout: React.FC = () => {
 
       {/* Sidebar: off-canvas drawer below lg, static rail from lg up */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-shrink-0 flex-col bg-shell text-shell-ink transition-transform duration-300 ease-out-expo lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-shrink-0 flex-col bg-shell text-shell-ink transition-transform duration-300 ease-out-expo lg:static lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-label="Main navigation"
       >
-        <div className="flex h-14 items-center justify-between border-b border-white/10 px-5">
-          <Link to="/" className="flex items-center gap-2.5 rounded-md">
-            <BrandMark className="h-[7px] w-[23px]" />
-            <span className="whitespace-nowrap text-[15px] font-semibold tracking-[-0.01em] text-white">
-              Workforce Analytics
-            </span>
+        <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
+          <Link to="/" className="flex items-center gap-3 rounded-md group">
+            <img
+              src="/logo-sidebar.png"
+              alt="WorkforceAI"
+              className="h-8 w-auto max-w-[200px] object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+            />
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -216,11 +216,11 @@ export const Layout: React.FC = () => {
           </button>
         </div>
 
-        <nav className="relative flex-1 overflow-y-auto px-3 pb-6 pt-3">
+        <nav className="relative flex-1 overflow-y-auto px-4 pb-6 pt-4">
           {puck && (
             <span
               aria-hidden="true"
-              className={`pointer-events-none absolute left-3 right-3 top-0 rounded-md bg-white/[0.12] ${
+              className={`pointer-events-none absolute left-4 right-4 top-0 rounded-lg bg-white/[0.14] shadow-sm ${
                 puckReady ? "transition-[transform,height] duration-300 ease-out-expo" : ""
               }`}
               style={{ transform: `translateY(${puck.top}px)`, height: puck.height }}
@@ -228,9 +228,11 @@ export const Layout: React.FC = () => {
           )}
           {groups.map((group, index) => (
             // Index, not :first-child: the highlight is the nav's first child once it is placed
-            <div key={group.label} className={index === 0 ? "mt-0" : "mt-6"}>
-              <p className="px-3 pb-1.5 text-xs font-medium text-shell-muted">{group.label}</p>
-              <ul className="space-y-0.5">
+            <div key={group.label || index} className={index === 0 ? "mt-0" : "mt-7"}>
+              {group.label ? (
+                <p className="px-3 pb-2 text-[12px] font-semibold uppercase tracking-wider text-shell-muted/80">{group.label}</p>
+              ) : null}
+              <ul className="space-y-2">
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const key = `${item.to}-${item.label}`;
@@ -244,20 +246,22 @@ export const Layout: React.FC = () => {
                         }}
                         to={item.to}
                         aria-current={isActive ? "page" : undefined}
-                        className={`relative flex h-9 items-center gap-3 rounded-md px-3 text-[13.5px] transition-colors duration-150 ease-out ${
+                        className={`group relative flex min-h-[44px] items-center gap-3.5 rounded-lg px-3.5 py-2.5 text-[14.5px] leading-snug transition-all duration-150 ease-out ${
                           isActive
-                            ? "font-medium text-white"
-                            : "text-shell-ink-2 hover:bg-white/[0.06] hover:text-white"
+                            ? "font-semibold text-white shadow-sm"
+                            : "text-shell-ink-2 hover:bg-white/[0.12] hover:text-white hover:translate-x-1 hover:shadow-sm"
                         }`}
                       >
                         <Icon
-                          className={`h-4 w-4 flex-shrink-0 transition-colors duration-150 ${
-                            isActive ? "text-white" : "text-shell-muted"
+                          className={`h-5 w-5 flex-shrink-0 transition-all duration-150 ${
+                            isActive
+                              ? "text-white scale-105"
+                              : "text-shell-muted group-hover:text-white group-hover:scale-110"
                           }`}
-                          strokeWidth={1.75}
+                          strokeWidth={1.85}
                           aria-hidden="true"
                         />
-                        {item.label}
+                        <span>{item.label}</span>
                       </Link>
                     </li>
                   );
@@ -268,23 +272,23 @@ export const Layout: React.FC = () => {
         </nav>
 
         {/* Signed-in user */}
-        <div className="border-t border-white/10 p-3">
-          <div className="flex items-center gap-3 rounded-md px-2 py-2">
+        <div className="border-t border-white/10 p-3.5">
+          <div className="flex items-center gap-3 rounded-lg px-2.5 py-2">
             <div
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-semibold text-white"
               aria-hidden="true"
             >
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-medium text-white" title={displayName}>
+              <p className="truncate text-[14px] font-medium text-white" title={displayName}>
                 {displayName}
               </p>
               {user && <p className="text-xs text-shell-muted">{ROLE_LABEL[user.role]}</p>}
             </div>
             <button
               onClick={handleLogout}
-              className="rounded-md p-1.5 text-shell-muted transition-colors duration-150 hover:bg-white/10 hover:text-white"
+              className="rounded-lg p-1.5 text-shell-muted transition-colors duration-150 hover:bg-white/10 hover:text-white"
               title="Log out"
               aria-label="Log out"
             >
@@ -296,7 +300,7 @@ export const Layout: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="z-10 flex h-14 flex-shrink-0 items-center justify-between border-b border-rule bg-panel px-4 sm:px-8">
+        <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-rule bg-panel px-4 sm:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -324,7 +328,7 @@ export const Layout: React.FC = () => {
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1360px] space-y-6 p-4 sm:p-6 lg:px-8 lg:py-7">
+          <div key={location.pathname} className="mx-auto max-w-[1360px] space-y-6 p-4 sm:p-6 lg:px-8 lg:py-7 page-enter">
             <Outlet />
           </div>
         </main>

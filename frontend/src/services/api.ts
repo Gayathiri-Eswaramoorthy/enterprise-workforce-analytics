@@ -20,8 +20,14 @@ export const clearStoredTokens = () => {
 
 /** Extract a human-readable message from an API error (FastAPI `detail`), with a fallback. */
 export const getErrorMessage = (err: unknown, fallback: string): string => {
-  const detail = (err as AxiosError<{ detail?: unknown }>)?.response?.data?.detail;
-  return typeof detail === "string" ? detail : fallback;
+  if (axios.isAxiosError(err)) {
+    if (!err.response) {
+      return "Cannot connect to backend server (port 8000). Please check if the backend is running.";
+    }
+    const detail = err.response.data?.detail;
+    if (typeof detail === "string") return detail;
+  }
+  return fallback;
 };
 
 // Attach Authorization Bearer token to outgoing requests

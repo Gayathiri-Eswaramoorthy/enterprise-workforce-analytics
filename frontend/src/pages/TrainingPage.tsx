@@ -123,6 +123,9 @@ export const TrainingPage: React.FC = () => {
   const [courseForm, setCourseForm] = useState<CourseForm>(EMPTY_COURSE);
   const [enrollDialog, setEnrollDialog] = useState<TrainingCourse | null>(null);
   const [enrollEmployeeId, setEnrollEmployeeId] = useState("");
+  const [enrollSearch, setEnrollSearch] = useState("");
+  const [enrollDept, setEnrollDept] = useState("ALL");
+  const [enrollWorkMode, setEnrollWorkMode] = useState<string>("ALL");
   const [updateDialog, setUpdateDialog] = useState<TrainingEnrollment | null>(null);
   const [updateForm, setUpdateForm] = useState({
     status: "ENROLLED" as EnrollmentStatus,
@@ -131,6 +134,7 @@ export const TrainingPage: React.FC = () => {
   });
   const [saving, setSaving] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [courseDetail, setCourseDetail] = useState<TrainingCourse | null>(null);
 
   // HR Learning & Development Dashboard
   const [activeTab, setActiveTab] = useState<"catalog" | "analytics">("catalog");
@@ -738,45 +742,52 @@ export const TrainingPage: React.FC = () => {
                       c.is_active ? "" : "opacity-70"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <span
-                        className="flex h-10 w-10 items-center justify-center rounded-xl"
-                        style={{
-                          color: hue,
-                          background: `color-mix(in srgb, ${hue} 12%, white)`,
-                          boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${hue} 25%, transparent)`,
-                        }}
-                      >
-                        <GraduationCap className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        {!c.is_active && (
-                          <span className="rounded-full bg-sunken px-2 py-0.5 text-[11px] font-medium text-ink-3">
-                            Inactive
-                          </span>
-                        )}
+                    {/* Clickable header area opens detail popup */}
+                    <button
+                      type="button"
+                      onClick={() => setCourseDetail(c)}
+                      className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
+                    >
+                      <div className="flex items-start justify-between gap-2">
                         <span
-                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                          style={{ color: hue, background: `color-mix(in srgb, ${hue} 10%, transparent)` }}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl"
+                          style={{
+                            color: hue,
+                            background: `color-mix(in srgb, ${hue} 12%, white)`,
+                            boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${hue} 25%, transparent)`,
+                          }}
                         >
-                          {DIFFICULTY_LABEL[c.difficulty_level]}
+                          <GraduationCap className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
                         </span>
-                        {isHr && (
-                          <button
-                            onClick={() => openCourseDialog(c)}
-                            aria-label={`Edit ${c.title}`}
-                            className="rounded-md p-1 text-ink-3 hover:bg-sunken hover:text-ink"
+                        <div className="flex items-center gap-1.5">
+                          {!c.is_active && (
+                            <span className="rounded-full bg-sunken px-2 py-0.5 text-[11px] font-medium text-ink-3">
+                              Inactive
+                            </span>
+                          )}
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                            style={{ color: hue, background: `color-mix(in srgb, ${hue} 10%, transparent)` }}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                            {DIFFICULTY_LABEL[c.difficulty_level]}
+                          </span>
+                          {isHr && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openCourseDialog(c); }}
+                              aria-label={`Edit ${c.title}`}
+                              className="rounded-md p-1 text-ink-3 hover:bg-sunken hover:text-ink"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    <h3 className="mt-3 text-[14.5px] font-semibold leading-snug text-ink">{c.title}</h3>
-                    <p className="mt-1 line-clamp-2 min-h-[2.4rem] text-[12.5px] text-ink-2">
-                      {c.description || "Upskilling course."}
-                    </p>
+                      <h3 className="mt-3 text-[14.5px] font-semibold leading-snug text-ink hover:text-accent transition-colors">{c.title}</h3>
+                      <p className="mt-1 line-clamp-2 min-h-[2.4rem] text-[12.5px] text-ink-2 text-left">
+                        {c.description || "Upskilling course."}
+                      </p>
+                    </button>
 
                     <div className="mt-2 flex min-h-[1.5rem] flex-wrap gap-1.5">
                       {(c.training_skills ?? []).slice(0, 3).map((ts) => (
@@ -1658,40 +1669,259 @@ export const TrainingPage: React.FC = () => {
         </Modal>
       )}
 
-      {/* HR: enroll an employee */}
-      {enrollDialog && (
-        <Modal title="Enroll employee" subtitle={enrollDialog.title} onClose={() => setEnrollDialog(null)}>
-          <form onSubmit={saveEnrollment} className="space-y-4">
-            <Field label="Employee">
-              <select
-                required
-                className="field"
-                value={enrollEmployeeId}
-                onChange={(e) => setEnrollEmployeeId(e.target.value)}
-              >
-                <option value="">Select an employee…</option>
-                {[...employees]
-                  .filter((e) => !e.is_deleted && e.employment_status === "ACTIVE")
-                  .sort((a, b) => a.full_name.localeCompare(b.full_name))
-                  .map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.full_name} · {e.department_name}
-                    </option>
+      {/* HR: enroll an employee with detailed selection cards */}
+      {enrollDialog && (() => {
+        const activeEmployees = employees.filter((e) => !e.is_deleted && e.employment_status === "ACTIVE");
+        const departmentsList = Array.from(
+          new Set(activeEmployees.map((e) => e.department_name).filter(Boolean)),
+        ) as string[];
+
+        const filteredEmployees = activeEmployees
+          .filter((e) => {
+            if (enrollDept !== "ALL" && e.department_name !== enrollDept) return false;
+            if (enrollWorkMode !== "ALL" && e.work_mode !== enrollWorkMode) return false;
+            if (enrollSearch.trim()) {
+              const q = enrollSearch.toLowerCase();
+              const matchName = e.full_name?.toLowerCase().includes(q);
+              const matchCode = e.employee_code?.toLowerCase().includes(q);
+              const matchRole = e.job_role_title?.toLowerCase().includes(q);
+              const matchEmail = e.official_email?.toLowerCase().includes(q);
+              const matchDept = e.department_name?.toLowerCase().includes(q);
+              if (!matchName && !matchCode && !matchRole && !matchEmail && !matchDept) return false;
+            }
+            return true;
+          })
+          .sort((a, b) => a.full_name.localeCompare(b.full_name));
+
+        const selectedEmployee = activeEmployees.find((e) => e.id === enrollEmployeeId);
+
+        return (
+          <Modal
+            title="Enroll Employee in Course"
+            subtitle={enrollDialog.title}
+            onClose={() => {
+              setEnrollDialog(null);
+              setEnrollEmployeeId("");
+              setEnrollSearch("");
+              setEnrollDept("ALL");
+              setEnrollWorkMode("ALL");
+            }}
+            wide
+          >
+            <form onSubmit={saveEnrollment} className="space-y-4">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-3" />
+                <input
+                  type="text"
+                  placeholder="Search by employee name, role title, code (e.g. EMP-001), or email..."
+                  value={enrollSearch}
+                  onChange={(e) => setEnrollSearch(e.target.value)}
+                  className="field pl-9 pr-8"
+                />
+                {enrollSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setEnrollSearch("")}
+                    className="absolute right-2.5 top-2.5 rounded p-0.5 text-ink-3 hover:bg-sunken"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Department & Work Mode Filter Pills */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="font-semibold text-ink-2 mr-1">Dept:</span>
+                  <button
+                    type="button"
+                    onClick={() => setEnrollDept("ALL")}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                      enrollDept === "ALL"
+                        ? "bg-accent text-white shadow-xs"
+                        : "border border-rule bg-sunken text-ink-2 hover:bg-panel"
+                    }`}
+                  >
+                    All ({activeEmployees.length})
+                  </button>
+                  {departmentsList.map((d) => {
+                    const count = activeEmployees.filter((e) => e.department_name === d).length;
+                    const on = enrollDept === d;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setEnrollDept(on ? "ALL" : d)}
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                          on
+                            ? "bg-accent text-white shadow-xs"
+                            : "border border-rule bg-sunken text-ink-2 hover:bg-panel"
+                        }`}
+                      >
+                        {d} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="font-semibold text-ink-2 mr-1">Mode:</span>
+                  {["ALL", "OFFICE", "REMOTE", "HYBRID"].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setEnrollWorkMode(m)}
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition ${
+                        enrollWorkMode === m
+                          ? "bg-ink text-panel"
+                          : "border border-rule bg-panel text-ink-3 hover:bg-sunken"
+                      }`}
+                    >
+                      {m}
+                    </button>
                   ))}
-              </select>
-            </Field>
-            {errorBox}
-            <div className="flex justify-end gap-3 border-t border-rule-soft pt-4">
-              <button type="button" onClick={() => setEnrollDialog(null)} className="btn">
-                Cancel
-              </button>
-              <button type="submit" disabled={saving || !enrollEmployeeId} className="btn btn-primary">
-                {saving ? "Enrolling..." : "Enroll"}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+                  <span className="ml-auto text-[11px] text-ink-3">
+                    Showing {filteredEmployees.length} of {activeEmployees.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detailed Selection Cards List */}
+              <div className="max-h-[290px] overflow-y-auto space-y-2 rounded-xl border border-rule bg-sunken/40 p-2">
+                {filteredEmployees.length === 0 ? (
+                  <div className="py-10 text-center text-xs text-ink-3">
+                    No active employees match your search or filter.
+                  </div>
+                ) : (
+                  filteredEmployees.map((emp) => {
+                    const isSelected = enrollEmployeeId === emp.id;
+                    const initials = emp.full_name
+                      .split(" ")
+                      .map((p) => p[0])
+                      .join("")
+                      .slice(0, 2);
+
+                    return (
+                      <div
+                        key={emp.id}
+                        onClick={() => setEnrollEmployeeId(emp.id)}
+                        className={`group flex cursor-pointer items-center justify-between rounded-xl border p-3 transition-all ${
+                          isSelected
+                            ? "border-accent bg-accent-soft/80 shadow-xs ring-2 ring-accent/30"
+                            : "border-rule bg-panel hover:border-rule-strong hover:bg-panel hover:shadow-xs"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Avatar */}
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                              isSelected ? "bg-accent text-white" : "bg-indigo-100 text-indigo-700"
+                            }`}
+                          >
+                            {initials}
+                          </div>
+
+                          {/* Info */}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-xs font-semibold text-ink">
+                                {emp.full_name}
+                              </span>
+                              <span className="rounded bg-sunken px-1.5 py-0.5 text-[10px] font-semibold text-ink-3">
+                                {emp.employee_code}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-ink-3">
+                              <span className="truncate text-ink-2">
+                                {emp.job_role_title || "General Role"}
+                              </span>
+                              <span>&bull;</span>
+                              <span className="truncate">{emp.department_name}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right tags and selection indicator */}
+                        <div className="flex items-center gap-2.5 shrink-0 ml-3">
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                              emp.work_mode === "REMOTE"
+                                ? "bg-cyan-50 text-cyan-700"
+                                : emp.work_mode === "HYBRID"
+                                ? "bg-indigo-50 text-indigo-700"
+                                : "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            {emp.work_mode}
+                          </span>
+
+                          <div
+                            className={`flex h-5 w-5 items-center justify-center rounded-full border transition ${
+                              isSelected
+                                ? "border-accent bg-accent text-white"
+                                : "border-rule bg-panel text-transparent group-hover:border-rule-strong"
+                            }`}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Selected Employee Summary Card */}
+              {selectedEmployee ? (
+                <div className="flex items-center justify-between rounded-lg border border-accent/30 bg-accent-soft/60 px-3.5 py-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-accent" />
+                    <span>
+                      <strong className="text-ink font-semibold">{selectedEmployee.full_name}</strong>
+                      <span className="text-ink-2"> &mdash; {selectedEmployee.job_role_title} ({selectedEmployee.department_name})</span>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEnrollEmployeeId("")}
+                    className="text-[11px] text-ink-3 hover:text-ink hover:underline"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-ink-3 text-center italic">
+                  Click any employee card above to select them for enrollment.
+                </p>
+              )}
+
+              {errorBox}
+
+              {/* Modal Actions */}
+              <div className="flex justify-end gap-3 border-t border-rule-soft pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEnrollDialog(null);
+                    setEnrollEmployeeId("");
+                  }}
+                  className="btn"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving || !enrollEmployeeId}
+                  className="btn btn-primary"
+                >
+                  {saving ? "Enrolling…" : "Enroll Employee"}
+                </button>
+              </div>
+            </form>
+          </Modal>
+        );
+      })()}
 
       {/* HR: record progress */}
       {updateDialog && (
@@ -1867,6 +2097,178 @@ export const TrainingPage: React.FC = () => {
           </form>
         </Modal>
       )}
+      {/* ── Course Detail Popup Modal ── */}
+      {courseDetail && (() => {
+        const c = courseDetail;
+        const hue = DIFFICULTY_HUE[c.difficulty_level];
+        const mine = myEnrollmentByCourse.get(c.id);
+        const enrolled = c.enrolled_count ?? 0;
+        const done = c.completed_count ?? 0;
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={c.title}
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              onClick={() => setCourseDetail(null)}
+            />
+            {/* Panel */}
+            <div className="relative z-10 w-full max-w-lg rounded-2xl border border-rule bg-panel shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+              {/* Colored header strip */}
+              <div
+                className="px-6 pt-6 pb-4"
+                style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${hue} 10%, white), color-mix(in srgb, ${hue} 5%, white))` }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl shadow-sm"
+                      style={{
+                        color: hue,
+                        background: `color-mix(in srgb, ${hue} 15%, white)`,
+                        boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${hue} 30%, transparent)`,
+                      }}
+                    >
+                      <GraduationCap className="h-6 w-6" strokeWidth={1.75} />
+                    </span>
+                    <div>
+                      <span
+                        className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold mb-1"
+                        style={{ color: hue, background: `color-mix(in srgb, ${hue} 12%, white)` }}
+                      >
+                        {DIFFICULTY_LABEL[c.difficulty_level]}
+                      </span>
+                      <h2 className="text-[16px] font-bold leading-snug text-ink">{c.title}</h2>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCourseDetail(null)}
+                    className="flex-shrink-0 rounded-lg p-1.5 text-ink-3 hover:bg-sunken hover:text-ink"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 space-y-4">
+                {/* Description */}
+                <p className="text-[13.5px] leading-relaxed text-ink-2">
+                  {c.description || "This course is designed to upskill employees in the relevant competency area."}
+                </p>
+
+                {/* Skills targeted */}
+                {(c.training_skills ?? []).length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-3">Skills Covered</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(c.training_skills ?? []).map((ts) => (
+                        <span
+                          key={ts.id}
+                          className="rounded-md bg-sunken px-2 py-0.5 text-[11.5px] font-medium text-ink-2"
+                        >
+                          {ts.skill?.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Course meta */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-sunken p-3 text-center">
+                    <Clock className="mx-auto mb-1 h-4 w-4 text-ink-3" />
+                    <p className="text-[13px] font-bold text-ink">{Number(c.duration_hours)}h</p>
+                    <p className="text-[10.5px] text-ink-3">Duration</p>
+                  </div>
+                  <div className="rounded-lg bg-sunken p-3 text-center">
+                    <Target className="mx-auto mb-1 h-4 w-4 text-ink-3" />
+                    <p className="text-[13px] font-bold text-ink">{MODE_LABEL[c.training_mode]}</p>
+                    <p className="text-[10.5px] text-ink-3">Mode</p>
+                  </div>
+                  <div className="rounded-lg bg-sunken p-3 text-center">
+                    <Award className="mx-auto mb-1 h-4 w-4 text-ink-3" />
+                    <p className="truncate text-[12px] font-bold text-ink">{c.provider || "—"}</p>
+                    <p className="text-[10.5px] text-ink-3">Provider</p>
+                  </div>
+                </div>
+
+                {/* Enrollment stats (HR only) */}
+                {isHr && (
+                  <div className="flex items-center gap-4 rounded-lg border border-rule px-4 py-3 text-sm">
+                    <span className="flex items-center gap-1.5 text-ink-2">
+                      <UserPlus className="h-4 w-4 text-ink-3" />
+                      <span className="font-semibold text-ink">{enrolled}</span> enrolled
+                    </span>
+                    <span className="flex items-center gap-1.5 text-ink-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      <span className="font-semibold text-ink">{done}</span> completed
+                    </span>
+                    {enrolled > 0 && (
+                      <span className="ml-auto text-xs text-ink-3">
+                        {Math.round((done / enrolled) * 100)}% completion rate
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Action */}
+                <div className="flex items-center gap-3 border-t border-rule-soft pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setCourseDetail(null)}
+                    className="btn flex-1"
+                  >
+                    Close
+                  </button>
+                  {isHr ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCourseDetail(null);
+                        setEnrollDialog(c);
+                        setEnrollEmployeeId("");
+                        setDialogError(null);
+                      }}
+                      disabled={!c.is_active}
+                      className="btn btn-primary flex-1"
+                    >
+                      <UserPlus className="h-4 w-4" /> Enroll Employee
+                    </button>
+                  ) : mine ? (
+                    <div className="flex flex-1 items-center justify-end gap-2">
+                      <EnrollmentStatusBadge status={mine.enrollment_status} />
+                      {mine.enrollment_status === "ENROLLED" && (
+                        <button
+                          type="button"
+                          onClick={() => { setCourseDetail(null); handleSetStatus(mine.id, "IN_PROGRESS"); }}
+                          disabled={busyId === mine.id}
+                          className="btn btn-primary"
+                        >
+                          <Play className="h-3.5 w-3.5" /> Start
+                        </button>
+                      )}
+                    </div>
+                  ) : ownEmployeeId ? (
+                    <button
+                      type="button"
+                      onClick={() => { setCourseDetail(null); handleEnroll(c.id); }}
+                      disabled={busyId === c.id || !c.is_active}
+                      className="btn btn-primary flex-1"
+                    >
+                      {busyId === c.id ? "Enrolling..." : "Enroll Now"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

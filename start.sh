@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -e
+
+# One-command startup for Enterprise Workforce Analytics (Backend + Frontend)
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+cleanup() {
+  echo ""
+  echo "🛑 Stopping all services..."
+  kill $(jobs -p) 2>/dev/null || true
+  exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+echo "=========================================="
+echo " 🚀 Enterprise Workforce Analytics"
+echo "=========================================="
+
+# 1. Start Backend API
+echo "Starting Backend (FastAPI on :8000)..."
+cd "$ROOT_DIR/backend"
+if [ -f ".venv/bin/uvicorn" ]; then
+  .venv/bin/uvicorn app.main:app --reload --port 8000 &
+elif command -v uvicorn >/dev/null 2>&1; then
+  uvicorn app.main:app --reload --port 8000 &
+else
+  python3 -m uvicorn app.main:app --reload --port 8000 &
+fi
+
+# Wait up to 10 seconds for backend to finish booting and bind port 8000
+echo "Waiting for Backend to be ready on port 8000..."
+READY=0
+for i in {1..20}; do
+  if curl -s http://127.0.0.1:8000/docs >/dev/null 2>&1; then
+    READY=1
+    echo "✅ Backend is ready!"
+    break
+  fi
+  sleep 0.5
+done
+
+if [ $READY -eq 0 ]; then
+  echo "⚠️  Backend startup took longer than 10s, proceeding anyway..."
+fi
+
+# 2. Start Frontend App
+echo "Starting Frontend (Vite on :5173)..."
+cd "$ROOT_DIR/frontend"
+npm run dev &
+
+echo ""
+echo "✨ Both services are up and running!"
+echo "   👉 Frontend: http://localhost:5173"
+echo "   👉 Backend:  http://127.0.0.1:8000"
+echo "   👉 Docs:     http://127.0.0.1:8000/docs"
+echo ""
+echo "Press [Ctrl + C] to stop all services."
+echo "=========================================="
+
+wait

@@ -25,7 +25,8 @@ import type {
 } from "../types";
 import { RiskStrip } from "../components/RiskStrip";
 import { RiskMeter } from "../components/RiskMeter";
-import { AT_RISK_LEVELS, RISK_LABEL, RISK_LEVELS, countByLevel, isRiskLevel, numberFormat } from "../lib/risk";
+import { AnimatedCounter } from "../components/AnimatedCounter";
+import { AT_RISK_LEVELS, RISK_LABEL, RISK_LEVELS, countByLevel, isRiskLevel } from "../lib/risk";
 
 interface OverviewData {
   metrics: DashboardMetrics;
@@ -456,10 +457,10 @@ export const DashboardPage: React.FC = () => {
                   aria-hidden="true"
                   className="text-[44px] font-semibold leading-none tracking-[-0.035em] text-ink tabular-nums sm:text-[52px]"
                 >
-                  {numberFormat.format(shownAtRisk)}
+                  <AnimatedCounter value={shownAtRisk} duration={900} />
                 </span>
                 <span aria-hidden="true" className="text-base leading-snug text-ink-2 sm:text-lg">
-                  of {numberFormat.format(totalHeadcount)} people are at high or critical risk of leaving
+                  of <AnimatedCounter value={totalHeadcount} duration={900} /> people are at high or critical risk of leaving
                 </span>
               </h1>
               <p className="mt-2.5 text-[13px] text-ink-3">

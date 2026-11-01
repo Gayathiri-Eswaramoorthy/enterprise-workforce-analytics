@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { RISK_COLOR, RISK_LABEL, RISK_LEVELS } from "../lib/risk";
 
-const PAGE_SIZE = 9;
+const PAGE_SIZE = 13;
 
 type SortKey = "risk_desc" | "risk_asc" | "name" | "joined";
 type View = "table" | "cards";
@@ -44,16 +44,22 @@ const initialsOf = (e: EmployeeListItem) => `${e.first_name[0] ?? ""}${e.last_na
 const nameOf = (e: EmployeeListItem) => e.full_name || `${e.first_name} ${e.last_name}`;
 const scoreOf = (e: EmployeeListItem) => (e.latest_risk_score == null ? null : Number(e.latest_risk_score));
 
-/** 1 2 3 … 26, always keeping the first and last page. */
-const pageWindow = (current: number, total: number): (number | "gap")[] => {
-  const pages = new Set([1, 2, total, current - 1, current, current + 1].filter((n) => n >= 1 && n <= total));
-  const sorted = [...pages].sort((a, b) => a - b);
-  const out: (number | "gap")[] = [];
-  sorted.forEach((n, i) => {
-    if (i > 0 && n - sorted[i - 1] > 1) out.push("gap");
-    out.push(n);
-  });
-  return out;
+/** Slidable continuous window of pages (e.g. < 1 2 3 >), no jumping gaps */
+const getSlidingPages = (current: number, total: number, size: number = 3): number[] => {
+  if (total <= size) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  let start = Math.max(1, current - Math.floor(size / 2));
+  let end = start + size - 1;
+  if (end > total) {
+    end = total;
+    start = Math.max(1, end - size + 1);
+  }
+  const pages: number[] = [];
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+  return pages;
 };
 
 const toggled = (set: Set<string>, value: string) => {
@@ -68,7 +74,7 @@ const csvCell = (value: string | number | null | undefined) => `"${String(value 
 const Avatar: React.FC<{ emp: EmployeeListItem }> = ({ emp }) => (
   <span
     aria-hidden="true"
-    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-accent-soft text-[13px] font-semibold text-link"
+    className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-link"
   >
     {initialsOf(emp)}
   </span>
@@ -157,16 +163,32 @@ const FilterGroup: React.FC<{
   );
 };
 
-const Kpi: React.FC<{ icon: React.ElementType; tone?: string; label: string; value: number; note?: string }> = ({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  note,
-}) => (
-  <div className="card flex items-center gap-4 p-5">
+const Kpi: React.FC<{
+  icon: React.ElementType;
+  tone?: string;
+  label: string;
+  value: number;
+  note?: string;
+  onClick?: () => void;
+  active?: boolean;
+}> = ({ icon: Icon, tone, label, value, note, onClick, active }) => (
+  <div
+    onClick={onClick}
+    role={onClick ? "button" : undefined}
+    tabIndex={onClick ? 0 : undefined}
+    onKeyDown={onClick ? (e) => (e.key === "Enter" || e.key === " " ? onClick() : undefined) : undefined}
+    className={`card flex items-center gap-4 p-5 transition-all duration-150 ${
+      onClick
+        ? `cursor-pointer select-none hover:shadow-md hover:border-rule-strong ${
+            active
+              ? "ring-2 ring-accent border-accent bg-accent-soft/30 shadow-sm"
+              : "hover:-translate-y-0.5"
+          }`
+        : ""
+    }`}
+  >
     <span
-      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full"
+      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-transform"
       style={
         tone
           ? { color: tone, background: `color-mix(in srgb, ${tone} 12%, transparent)` }
@@ -354,6 +376,28 @@ export const EmployeesPage: React.FC = () => {
   const allOnPageSelected = pageRows.length > 0 && pageRows.every((e) => selected.has(e.id));
   const filtersActive = query || depts.size || statuses.size || risks.size || modes.size;
 
+  // Keyboard arrow keys navigation (Left/Right arrow to change pages)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT" ||
+        target?.isContentEditable;
+      if (isInput) return;
+
+      if (e.key === "ArrowLeft") {
+        setPage((p) => Math.max(1, p - 1));
+      } else if (e.key === "ArrowRight") {
+        setPage((p) => Math.min(totalPages, p + 1));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [totalPages]);
+
   const clearAll = () => {
     setQuery("");
     setDepts(new Set());
@@ -434,14 +478,44 @@ export const EmployeesPage: React.FC = () => {
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Kpi icon={Users} label="Total Employees" value={kpis.total} />
-        <Kpi icon={UserCheck} tone="var(--risk-low)" label="Active" value={kpis.active} note={kpis.pct(kpis.active)} />
+        <Kpi
+          icon={Users}
+          label="Total Employees"
+          value={kpis.total}
+          active={risks.size === 0 && statuses.size === 0}
+          onClick={() => {
+            setRisks(new Set());
+            setStatuses(new Set());
+            setPage(1);
+          }}
+        />
+        <Kpi
+          icon={UserCheck}
+          tone="var(--risk-low)"
+          label="Active"
+          value={kpis.active}
+          note={kpis.pct(kpis.active)}
+          active={statuses.has("ACTIVE") && statuses.size === 1}
+          onClick={() => {
+            setStatuses((prev) => (prev.has("ACTIVE") && prev.size === 1 ? new Set() : new Set(["ACTIVE"])));
+            setPage(1);
+          }}
+        />
         <Kpi
           icon={TriangleAlert}
           tone="var(--risk-medium)"
           label="At Risk (Med/High)"
           value={kpis.atRisk}
           note={kpis.pct(kpis.atRisk)}
+          active={risks.has("HIGH") && risks.has("MEDIUM") && !risks.has("CRITICAL") && risks.size === 2}
+          onClick={() => {
+            if (risks.has("HIGH") && risks.has("MEDIUM") && risks.size === 2) {
+              setRisks(new Set());
+            } else {
+              setRisks(new Set(["HIGH", "MEDIUM"]));
+            }
+            setPage(1);
+          }}
         />
         <Kpi
           icon={ShieldAlert}
@@ -449,11 +523,20 @@ export const EmployeesPage: React.FC = () => {
           label="Critical Risk"
           value={kpis.critical}
           note={kpis.pct(kpis.critical)}
+          active={risks.has("CRITICAL") && risks.size === 1}
+          onClick={() => {
+            if (risks.has("CRITICAL") && risks.size === 1) {
+              setRisks(new Set());
+            } else {
+              setRisks(new Set(["CRITICAL"]));
+            }
+            setPage(1);
+          }}
         />
         <Kpi icon={Building2} label="Departments" value={kpis.departments} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
         {/* Filters */}
         <aside className="card space-y-4 p-5" aria-label="Filters">
           <div className="flex items-center justify-between">
@@ -581,9 +664,34 @@ export const EmployeesPage: React.FC = () => {
           </div>
 
           {loading ? (
-            <div className="flex flex-col items-center py-16 text-ink-3">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
-              <p className="mt-2 text-xs">Loading employee records...</p>
+            <div className="overflow-x-auto" aria-busy="true" aria-label="Loading employees">
+              <div className="divide-y divide-rule border-b border-rule">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <div key={i} className="flex h-[58px] items-center gap-4 px-4">
+                    <div className="skeleton h-4 w-4 rounded" />
+                    <div className="skeleton h-4 w-8 rounded" />
+                    <div className="flex items-center gap-3 w-[26%]">
+                      <div className="skeleton h-8 w-8 rounded-full flex-shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="skeleton h-3.5 w-28 rounded" />
+                        <div className="skeleton h-2.5 w-20 rounded" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 w-[20%]">
+                      <div className="skeleton h-3.5 w-32 rounded" />
+                      <div className="skeleton h-2.5 w-24 rounded" />
+                    </div>
+                    <div className="skeleton h-5 w-20 rounded-full" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="skeleton h-2.5 w-full rounded" />
+                      <div className="skeleton h-2.5 w-3/4 rounded" />
+                    </div>
+                    <div className="flex justify-end gap-2 w-[130px]">
+                      <div className="skeleton h-7 w-16 rounded-md" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : rows.length === 0 ? (
             <p className="py-16 text-center text-[13px] text-ink-3">No employee profiles match these filters.</p>
@@ -593,10 +701,9 @@ export const EmployeesPage: React.FC = () => {
                 <colgroup>
                   <col className="w-12" />
                   <col className="w-14" />
-                  <col className="w-[24%]" />
-                  <col className="w-[17%]" />
-                  <col className="w-[92px]" />
-                  <col className="w-[96px]" />
+                  <col className="w-[26%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[100px]" />
                   <col />
                   <col className="w-[130px]" />
                 </colgroup>
@@ -632,9 +739,6 @@ export const EmployeesPage: React.FC = () => {
                     <th scope="col" className="px-3">
                       Work Mode
                     </th>
-                    <th scope="col" className="px-3">
-                      Status
-                    </th>
                     <th scope="col" className="whitespace-nowrap px-3">
                       Attrition Risk
                     </th>
@@ -647,7 +751,7 @@ export const EmployeesPage: React.FC = () => {
                   {pageRows.map((emp, index) => (
                     <tr
                       key={emp.id}
-                      className="h-[72px] border-b border-rule transition-colors duration-150 last:border-b-0 hover:bg-hover"
+                      className="h-[58px] border-b border-rule transition-colors duration-150 last:border-b-0 hover:bg-hover"
                     >
                       <td className="pl-4">
                         <input
@@ -662,38 +766,35 @@ export const EmployeesPage: React.FC = () => {
                         {firstIndex + index + 1}
                       </td>
                       <td className="px-3">
-                        <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
                           <Avatar emp={emp} />
                           <div className="min-w-0">
                             <Link
                               to={`/employees/${emp.id}`}
-                              className="block truncate font-semibold text-ink hover:text-link"
+                              className="block truncate text-[13px] font-semibold text-ink hover:text-link"
                             >
                               {nameOf(emp)}
                             </Link>
-                            <p className="truncate text-xs text-ink-3">
+                            <p className="truncate text-[11.5px] text-ink-3">
                               {emp.employee_code} · {emp.official_email}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="px-3">
-                        <p className="truncate font-medium text-ink">{emp.department_name ?? "-"}</p>
-                        <p className="truncate text-xs text-ink-3">{emp.job_role_title ?? "-"}</p>
+                        <p className="truncate text-[13px] font-medium text-ink">{emp.department_name ?? "-"}</p>
+                        <p className="truncate text-[11.5px] text-ink-3">{emp.job_role_title ?? "-"}</p>
                       </td>
                       <td className="px-3">
-                        <span className="inline-flex rounded-md border border-rule bg-sunken px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-ink-2">
+                        <span className="inline-flex rounded-md border border-rule bg-sunken px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-ink-2">
                           {emp.work_mode}
                         </span>
-                      </td>
-                      <td className="px-3">
-                        <StatusChip status={emp.employment_status} />
                       </td>
                       <td className="px-3">
                         <RiskBar emp={emp} />
                       </td>
                       <td className="px-3 text-center">
-                        <Link to={`/employees/${emp.id}`} className="btn h-8 whitespace-nowrap px-3 text-link">
+                        <Link to={`/employees/${emp.id}`} className="btn h-7.5 whitespace-nowrap px-3 text-xs text-link">
                           View Profile
                         </Link>
                       </td>
@@ -732,41 +833,51 @@ export const EmployeesPage: React.FC = () => {
                 ? "No results"
                 : `Showing ${firstIndex + 1}-${firstIndex + pageRows.length} of ${rows.length} employees`}
             </span>
-            <nav className="flex items-center gap-1" aria-label="Pagination">
+            <nav
+              className="flex items-center gap-1.5"
+              aria-label="Pagination"
+              title="Use Arrow keys (← / →) on keyboard to switch pages"
+            >
               <button
                 onClick={() => setPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage <= 1}
-                aria-label="Previous page"
-                className="btn h-8 w-8 px-0"
+                aria-label="Previous page (Left Arrow)"
+                title="Previous page (← Left Arrow)"
+                className="btn h-8 w-8 px-0 rounded-lg hover:border-rule-strong disabled:opacity-40 transition-transform active:scale-95"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </button>
-              {pageWindow(currentPage, totalPages).map((n, i) =>
-                n === "gap" ? (
-                  <span key={`gap-${i}`} className="px-1.5">
-                    …
-                  </span>
-                ) : (
+
+              <div className="flex items-center gap-1 overflow-hidden transition-all duration-200">
+                {getSlidingPages(currentPage, totalPages, 3).map((n) => (
                   <button
                     key={n}
                     onClick={() => setPage(n)}
                     aria-current={n === currentPage ? "page" : undefined}
-                    className={`h-8 min-w-8 rounded-lg px-2 text-[13px] font-medium tabular-nums ${
-                      n === currentPage ? "bg-accent text-white" : "text-ink-2 hover:bg-sunken"
+                    className={`h-8 w-8 rounded-lg text-[13px] font-semibold tabular-nums transition-all duration-200 active:scale-95 ${
+                      n === currentPage
+                        ? "bg-accent text-white shadow-sm"
+                        : "border border-rule bg-panel text-ink-2 hover:bg-sunken hover:border-rule-strong hover:text-ink"
                     }`}
                   >
                     {n}
                   </button>
-                ),
-              )}
+                ))}
+              </div>
+
               <button
                 onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage >= totalPages}
-                aria-label="Next page"
-                className="btn h-8 w-8 px-0"
+                aria-label="Next page (Right Arrow)"
+                title="Next page (→ Right Arrow)"
+                className="btn h-8 w-8 px-0 rounded-lg hover:border-rule-strong disabled:opacity-40 transition-transform active:scale-95"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </button>
+
+              <span className="ml-2 hidden text-[11px] text-ink-3 md:inline-block">
+                (Press <kbd className="rounded border border-rule bg-sunken px-1 py-0.5 font-mono text-[10px]">←</kbd> / <kbd className="rounded border border-rule bg-sunken px-1 py-0.5 font-mono text-[10px]">→</kbd>)
+              </span>
             </nav>
           </div>
         </section>

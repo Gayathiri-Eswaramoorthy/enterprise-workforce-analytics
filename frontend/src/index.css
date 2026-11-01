@@ -252,6 +252,22 @@
   animation: skeleton 1.4s ease-in-out infinite;
 }
 
+/* Page navigation transitions */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: pageEnter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Sorting, filtering and paging reflow the table through a view transition */
 ::view-transition-group(*) {
   animation-duration: 320ms;

@@ -2,12 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import api, { getErrorMessage } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import type { EmployeeSkill, Skill } from "../types";
-import { Cpu, Download, FileSpreadsheet, FileText, Flag, Layers, Pencil, Plus, Search, Tags, TriangleAlert, Users } from "lucide-react";
-import { Kpi } from "../components/Kpi";
+import { Cpu, Download, FileSpreadsheet, FileText, Flag, Layers, Pencil, Plus, Search, TriangleAlert, Users } from "lucide-react";
 import { Field, Modal } from "../components/Modal";
 import { FacetGroup, toggled } from "../components/FacetGroup";
 import { Pager } from "../components/Pager";
 import { downloadCsv, openFormattedPdfReport } from "../utils/exportReports";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const PAGE_SIZE = 9;
 
@@ -270,7 +270,6 @@ export const SkillsPage: React.FC = () => {
 
   const withGaps = Object.values(gapBySkill).filter((g) => g.affected > 0).length;
   const mandatoryGaps = Object.values(gapBySkill).reduce((sum, g) => sum + g.mandatory, 0);
-  const activeCount = skills.filter((s) => s.is_active !== false).length;
 
   if (loading) {
     return (
@@ -342,25 +341,164 @@ export const SkillsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi icon={Layers} label="Skills in catalog" value={skills.length} note={`${activeCount} active`} />
-        <Kpi icon={Tags} label="Categories" value={categoryCounts.size} />
+      {/* ── Top Row: 3 Bar Chart Stat Cards ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+
+        {/* Bar Chart 1: Skills Catalog Breakdown by Category */}
+        <div className="rounded-xl border border-rule bg-panel p-4 shadow-card">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "#eef0ff", color: "#4f46e5" }}>
+              <Layers className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-[13px] font-semibold text-ink">{skills.length} Skills</p>
+              <p className="text-[11px] text-ink-3">Catalog breakdown</p>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={80}>
+            <BarChart
+              data={[...categoryCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([cat, count]) => ({ cat: cat.length > 10 ? cat.slice(0, 10) + "…" : cat, count }))}
+              margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
+              barSize={14}
+            >
+              <XAxis dataKey="cat" tick={{ fontSize: 9, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} interval={0} />
+              <YAxis tick={{ fontSize: 9, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--rule)" }}
+                formatter={(v: any) => [v, "Skills"]}
+              />
+              <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                {[...categoryCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([cat], idx) => (
+                  <Cell key={cat} fill={CATEGORY_HUES[idx % CATEGORY_HUES.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Bar Chart 2: Skills with Gaps vs No Gaps */}
         {isHr ? (
-          <>
-            <Kpi icon={TriangleAlert} tone="var(--risk-medium)" label="Skills with gaps" value={withGaps} />
-            <Kpi icon={Flag} tone="var(--risk-critical)" label="Mandatory gaps" value={mandatoryGaps} />
-          </>
+          <div className="rounded-xl border border-rule bg-panel p-4 shadow-card">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "#fdf0dc", color: "#d97706" }}>
+                <TriangleAlert className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold text-ink">{withGaps} / {skills.length}</p>
+                <p className="text-[11px] text-ink-3">Skills with gaps</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart
+                data={[
+                  { label: "With Gaps", count: withGaps },
+                  { label: "No Gaps", count: skills.length - withGaps },
+                ]}
+                margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
+                barSize={28}
+              >
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--rule)" }}
+                  formatter={(v: any) => [v, "Skills"]}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  <Cell fill="#f59e0b" />
+                  <Cell fill="#10b981" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         ) : (
-          <>
-            <Kpi icon={Cpu} label="Skills you hold" value={Object.keys(mine).length} />
-            <Kpi
-              icon={Flag}
-              tone="var(--risk-low)"
-              label="Expert level (4+)"
-              value={Object.values(mine).filter((v) => v >= 4).length}
-            />
-          </>
+          <div className="rounded-xl border border-rule bg-panel p-4 shadow-card">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "#e5f7ef", color: "#059669" }}>
+                <Cpu className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold text-ink">{Object.keys(mine).length} held</p>
+                <p className="text-[11px] text-ink-3">Your skill levels</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart
+                data={[1, 2, 3, 4, 5].map(lvl => ({ level: `Lv ${lvl}`, count: Object.values(mine).filter(v => v === lvl).length }))}
+                margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
+                barSize={18}
+              >
+                <XAxis dataKey="level" tick={{ fontSize: 9, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--rule)" }} formatter={(v: any) => [v, "Skills"]} />
+                <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Bar Chart 3: Mandatory Gaps Severity */}
+        {isHr ? (
+          <div className="rounded-xl border border-rule bg-panel p-4 shadow-card">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "#fde8e8", color: "#dc2626" }}>
+                <Flag className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold text-ink">{mandatoryGaps} Mandatory</p>
+                <p className="text-[11px] text-ink-3">Gap severity by skill</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart
+                data={topGaps.slice(0, 5).map(g => ({ name: g.skill_name.length > 10 ? g.skill_name.slice(0, 10) + "…" : g.skill_name, count: g.affected_employees_count }))}
+                margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
+                barSize={14}
+              >
+                <XAxis dataKey="name" tick={{ fontSize: 9, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} interval={0} />
+                <YAxis tick={{ fontSize: 9, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--rule)" }}
+                  formatter={(v: any) => [v, "Employees affected"]}
+                />
+                <Bar dataKey="count" fill="#dc2626" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-rule bg-panel p-4 shadow-card">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "#e0f2fe", color: "#0284c7" }}>
+                <Flag className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold text-ink">{Object.values(mine).filter(v => v >= 4).length} Expert</p>
+                <p className="text-[11px] text-ink-3">Level 4+ skills</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart
+                data={["Expert(4+)", "Proficient(3)", "Developing(1-2)"].map((label, i) => ({
+                  label,
+                  count: i === 0
+                    ? Object.values(mine).filter(v => v >= 4).length
+                    : i === 1
+                    ? Object.values(mine).filter(v => v === 3).length
+                    : Object.values(mine).filter(v => v <= 2).length,
+                }))}
+                margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
+                barSize={22}
+              >
+                <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--rule)" }} formatter={(v: any) => [v, "Skills"]} />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  <Cell fill="#4f46e5" />
+                  <Cell fill="#0891b2" />
+                  <Cell fill="#94a3b8" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
 

@@ -112,6 +112,15 @@ Data persists in a named Docker volume (`pgdata`) across restarts; the seed step
    npm run build
    ```
 
+### Running Both Concurrently (Root Command)
+From the repository root, you can start both the FastAPI backend and React Vite frontend together:
+```bash
+npm run dev
+```
+Or start either individually from the root:
+- `npm run dev:backend` — Starts only the FastAPI server on port 8000
+- `npm run dev:frontend` — Starts only the React Vite dev server on port 5173
+
 ---
 
 ## Demo Accounts & Role-Based Logins
