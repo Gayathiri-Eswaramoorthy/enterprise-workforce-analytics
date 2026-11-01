@@ -1911,6 +1911,7 @@ def seed_database():
 
         # 8. Seed Learning, Quizzes, Assessments & Retention Interventions
         from app.database.seed_learning import seed_learning_and_retention
+
         seed_learning_and_retention(db)
 
         print("[Seed] Database seeding completed successfully!")

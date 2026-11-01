@@ -31,8 +31,12 @@ import {
   TrendingDown,
   ArrowUp,
   ArrowDown,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { exportAttritionRiskSummary } from "../utils/exportReports";
 import {
   Bar,
   BarChart,
@@ -152,6 +156,16 @@ export const PredictionsPage: React.FC = () => {
   const [riskFilter, setRiskFilter] = useState<RiskLevel | "">("");
   const [sort, setSort] = useState<SortKey>("latest");
   const [page, setPage] = useState(1);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const handleExportAttrition = (format: "csv" | "pdf") => {
+    setShowExportMenu(false);
+    exportAttritionRiskSummary(format, employees, {
+      version: activeModel?.model_version || "v2.0.0-ibm",
+      algorithm: activeModel?.algorithm || "Random Forest Classifier",
+      accuracy: activeModel?.accuracy ? Number(activeModel.accuracy) : 0.78,
+    });
+  };
 
   const fetchAll = useCallback(async () => {
     try {
@@ -288,6 +302,42 @@ export const PredictionsPage: React.FC = () => {
           Monitor model health, identify high-risk employees, and act before attrition happens.
         </p>
         <div className="flex items-center gap-2">
+          {/* Export Summary Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="rounded-lg border border-rule bg-panel px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sunken transition-colors inline-flex items-center gap-2"
+            >
+              <Download className="h-4 w-4 text-ink-3" />
+              <span>Export Risk Summary</span>
+            </button>
+
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 top-full mt-1.5 z-30 w-56 rounded-xl border border-rule bg-panel py-1.5 shadow-xl animate-in fade-in">
+                  <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-3">
+                    Export Format
+                  </div>
+                  <button
+                    onClick={() => handleExportAttrition("csv")}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink hover:bg-sunken"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                    <span>Download CSV Dataset</span>
+                  </button>
+                  <button
+                    onClick={() => handleExportAttrition("pdf")}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink hover:bg-sunken"
+                  >
+                    <FileText className="h-4 w-4 text-rose-600" />
+                    <span>Executive Risk PDF Report</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
           {activeModel && (
             <span className="inline-flex h-9 items-center rounded-lg border border-rule bg-panel px-3 text-[13px] font-medium text-ink-2">
               Model {activeModel.model_version}

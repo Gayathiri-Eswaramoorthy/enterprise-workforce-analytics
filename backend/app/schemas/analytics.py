@@ -106,4 +106,3 @@ class SystemOverviewMetrics(BaseModel):
     audit_action_counts: list[AuditActionCount] = []
     active_model_version: str | None = None
     system_status: str = "HEALTHY"
-

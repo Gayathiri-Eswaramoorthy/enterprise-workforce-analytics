@@ -17,7 +17,6 @@ from app.schemas.assessment import (
     SkillAssessmentResponse,
 )
 from app.security import (
-    HR_ROLES,
     ensure_employee_access,
     get_current_active_user,
     require_hr,
@@ -132,6 +131,7 @@ def list_skill_assessments(
         ensure_employee_access(db, current_user, employee_id)
     elif current_user.role not in [UserRole.HR_ADMIN, UserRole.HR_MANAGER]:
         from app.security import get_linked_employee_id
+
         employee_id = get_linked_employee_id(db, current_user)
     return assessment_service.list_assessments(
         db=db, employee_id=employee_id, skill_id=skill_id, course_id=course_id

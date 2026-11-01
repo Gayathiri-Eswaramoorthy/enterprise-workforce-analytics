@@ -62,6 +62,7 @@ const ROLE_NAV_GROUPS: Record<UserRole, NavGroup[]> = {
         { to: "/departments", label: "Departments", icon: Building2 },
         { to: "/skills", label: "Skills & Skill Gaps", icon: Layers },
         { to: "/training", label: "Training & Learning Analytics", icon: GraduationCap },
+        { to: "/audit-logs", label: "Compliance & Audit Log", icon: ScrollText },
       ],
     },
   ],

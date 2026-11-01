@@ -8,7 +8,6 @@ All operations are strictly idempotent.
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-import uuid
 
 from app.database import (
     AssessmentType,
@@ -29,7 +28,6 @@ from app.models import (
     QuizQuestion,
     Recommendation,
     RetentionIntervention,
-    RoleSkill,
     Skill,
     SkillAssessment,
     TrainingCourse,
@@ -39,7 +37,6 @@ from app.models import (
 )
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
-
 
 SAMPLE_COURSES = [
     {
@@ -205,7 +202,11 @@ def test_risk_classification(score, expected_band):
                     "order_index": 2,
                     "explanation": "Setting frozen=True makes instances immutable, preventing accidental side-effects and allowing instances to be safely hashed and shared.",
                     "options": [
-                        ("To create immutable, hashable value objects without boilerplate", True, 1),
+                        (
+                            "To create immutable, hashable value objects without boilerplate",
+                            True,
+                            1,
+                        ),
                         ("To compile the class directly into C machine code", False, 2),
                         ("To bypass Python's Global Interpreter Lock (GIL)", False, 3),
                         ("To automatically persist instances into PostgreSQL", False, 4),
@@ -364,7 +365,11 @@ WHERE e.employment_status = 'ACTIVE';
                     "order_index": 2,
                     "explanation": "Window functions calculate across partitioned rows while retaining individual row identity, whereas GROUP BY collapses rows.",
                     "options": [
-                        ("Window functions preserve row identities rather than collapsing them into single summary rows", True, 1),
+                        (
+                            "Window functions preserve row identities rather than collapsing them into single summary rows",
+                            True,
+                            1,
+                        ),
                         ("Window functions cannot use mathematical calculations", False, 2),
                         ("Window functions only work on primary keys", False, 3),
                         ("Window functions can only run on SQLite", False, 4),
@@ -375,7 +380,11 @@ WHERE e.employment_status = 'ACTIVE';
                     "order_index": 3,
                     "explanation": "Atomicity ensures that all statements within a transaction either completely succeed together or are entirely rolled back upon failure.",
                     "options": [
-                        ("All changes in a transaction succeed completely or are rolled back completely", True, 1),
+                        (
+                            "All changes in a transaction succeed completely or are rolled back completely",
+                            True,
+                            1,
+                        ),
                         ("Queries are executed at atomic sub-millisecond clock speeds", False, 2),
                         ("Tables are restricted to atomic data types like integers", False, 3),
                         ("Only one user can connect to the database at a time", False, 4),
@@ -499,7 +508,11 @@ Distributing application instances across multiple Availability Zones protects a
                     "explanation": "The principle of least privilege dictates granting users and services only the minimum permissions necessary to perform their required duties.",
                     "options": [
                         ("Granting root administrative access to all engineers", False, 1),
-                        ("Assigning users and services only the minimum permissions necessary to perform their required duties", True, 2),
+                        (
+                            "Assigning users and services only the minimum permissions necessary to perform their required duties",
+                            True,
+                            2,
+                        ),
                         ("Disabling audit logging to decrease network latency", False, 3),
                         ("Sharing database credentials among microservices", False, 4),
                     ],
@@ -509,8 +522,16 @@ Distributing application instances across multiple Availability Zones protects a
                     "order_index": 2,
                     "explanation": "Multi-stage builds separate compilers and build dependencies from the final image, producing dramatically smaller, more secure container artifacts.",
                     "options": [
-                        ("Producing lightweight, minimal production images by omitting build-time tools and compilers", True, 1),
-                        ("Running multiple Docker containers simultaneously on a single CPU core", False, 2),
+                        (
+                            "Producing lightweight, minimal production images by omitting build-time tools and compilers",
+                            True,
+                            1,
+                        ),
+                        (
+                            "Running multiple Docker containers simultaneously on a single CPU core",
+                            False,
+                            2,
+                        ),
                         ("Automatically converting Python code into Go", False, 3),
                         ("Eliminating the need for cloud networking", False, 4),
                     ],
@@ -521,7 +542,11 @@ Distributing application instances across multiple Availability Zones protects a
                     "explanation": "Distributing services across separate physical data centers (zones) protects applications from downtime if a single data center suffers an outage.",
                     "options": [
                         ("To double database latency across network links", False, 1),
-                        ("To ensure continuous operation even if an individual data center suffers a physical outage", True, 2),
+                        (
+                            "To ensure continuous operation even if an individual data center suffers a physical outage",
+                            True,
+                            2,
+                        ),
                         ("Because cloud providers do not allow single-zone deployments", False, 3),
                         ("To bypass corporate compliance firewalls", False, 4),
                     ],
@@ -643,10 +668,22 @@ def predict_risk(features: EmployeeFeatures):
                     "order_index": 1,
                     "explanation": "Data drift refers to changes in the distribution of input features P(X), whereas concept drift refers to changes in the actual relationship between inputs and targets P(Y|X).",
                     "options": [
-                        ("Data drift alters the database schema, while concept drift renames columns", False, 1),
-                        ("Data drift is changes in input feature distribution P(X); concept drift is changes in the relationship P(Y|X)", True, 2),
+                        (
+                            "Data drift alters the database schema, while concept drift renames columns",
+                            False,
+                            1,
+                        ),
+                        (
+                            "Data drift is changes in input feature distribution P(X); concept drift is changes in the relationship P(Y|X)",
+                            True,
+                            2,
+                        ),
                         ("Data drift only occurs in neural networks, not Random Forests", False, 3),
-                        ("Concept drift occurs only during model training, not inference", False, 4),
+                        (
+                            "Concept drift occurs only during model training, not inference",
+                            False,
+                            4,
+                        ),
                     ],
                 },
                 {
@@ -654,8 +691,16 @@ def predict_risk(features: EmployeeFeatures):
                     "order_index": 2,
                     "explanation": "A model registry serves as a centralized repository managing model versioning, lineage, approval stages (Staging/Production), and metadata.",
                     "options": [
-                        ("It replaces the PostgreSQL database for all application storage", False, 1),
-                        ("It tracks model versions, artifact lineage, evaluation metrics, and promotion stages", True, 2),
+                        (
+                            "It replaces the PostgreSQL database for all application storage",
+                            False,
+                            1,
+                        ),
+                        (
+                            "It tracks model versions, artifact lineage, evaluation metrics, and promotion stages",
+                            True,
+                            2,
+                        ),
                         ("It automatically calculates employee salaries", False, 3),
                         ("It translates Python models directly into JavaScript", False, 4),
                     ],
@@ -677,7 +722,11 @@ def predict_risk(features: EmployeeFeatures):
                     "explanation": "Canary deployment routes a small percentage of live traffic (e.g. 5%) to the new candidate model while monitoring metrics before full rollout.",
                     "options": [
                         ("Deploying models exclusively to edge IoT hardware", False, 1),
-                        ("Routing a small percentage of live traffic to the candidate model to verify stability before full rollout", True, 2),
+                        (
+                            "Routing a small percentage of live traffic to the candidate model to verify stability before full rollout",
+                            True,
+                            2,
+                        ),
                         ("Training models using simulated synthetic birds", False, 3),
                         ("Reverting all model updates permanently", False, 4),
                     ],
@@ -798,7 +847,11 @@ class CompactRecord:
                     "explanation": "Because asyncio runs on a single thread event loop, a blocking CPU operation freezes the entire loop, preventing all other concurrent tasks from progressing.",
                     "options": [
                         ("AsyncIO automatically spawns a background thread", False, 1),
-                        ("It blocks the event loop, pausing all other concurrent tasks until it finishes", True, 2),
+                        (
+                            "It blocks the event loop, pausing all other concurrent tasks until it finishes",
+                            True,
+                            2,
+                        ),
                         ("Python raises a SyntaxError at runtime", False, 3),
                         ("The function executes at double speed", False, 4),
                     ],
@@ -808,7 +861,11 @@ class CompactRecord:
                     "order_index": 2,
                     "explanation": "CPU-bound tasks should be delegated to a ThreadPoolExecutor or ProcessPoolExecutor via loop.run_in_executor to avoid blocking the event loop.",
                     "options": [
-                        ("Using loop.run_in_executor with a ThreadPoolExecutor or ProcessPoolExecutor", True, 1),
+                        (
+                            "Using loop.run_in_executor with a ThreadPoolExecutor or ProcessPoolExecutor",
+                            True,
+                            1,
+                        ),
                         ("Placing time.sleep() before every calculation", False, 2),
                         ("Calling sys.setrecursionlimit(100000)", False, 3),
                         ("Wrapping the calculation in a try/except block", False, 4),
@@ -820,7 +877,11 @@ class CompactRecord:
                     "explanation": "__slots__ tells Python not to create a dynamic __dict__ dictionary for each instance, saving significant memory when millions of instances are created.",
                     "options": [
                         ("It forces Python to store all attributes in Redis", False, 1),
-                        ("It suppresses instance __dict__ creation, significantly lowering per-instance memory footprint", True, 2),
+                        (
+                            "It suppresses instance __dict__ creation, significantly lowering per-instance memory footprint",
+                            True,
+                            2,
+                        ),
                         ("It compresses all strings into base64", False, 3),
                         ("It prevents class inheritance", False, 4),
                     ],
@@ -831,7 +892,11 @@ class CompactRecord:
                     "explanation": "asyncio.gather waits for all coroutines and returns results in original order; asyncio.as_completed yields results as each task finishes.",
                     "options": [
                         ("gather is deprecated in Python 3", False, 1),
-                        ("gather returns results in the submitted order; as_completed yields tasks as they finish", True, 2),
+                        (
+                            "gather returns results in the submitted order; as_completed yields tasks as they finish",
+                            True,
+                            2,
+                        ),
                         ("as_completed can only run single-threaded calculations", False, 3),
                         ("They are identical aliases for each other", False, 4),
                     ],
@@ -936,9 +1001,7 @@ def seed_learning_and_retention(db: Session) -> None:
 
         # Seed or update quiz
         q_info = c_info["quiz"]
-        existing_quiz = db.scalar(
-            select(CourseQuiz).where(CourseQuiz.course_id == course.id)
-        )
+        existing_quiz = db.scalar(select(CourseQuiz).where(CourseQuiz.course_id == course.id))
         if not existing_quiz:
             quiz = CourseQuiz(
                 course_id=course.id,
@@ -985,40 +1048,52 @@ def seed_learning_and_retention(db: Session) -> None:
     # Ensure TR-GCP-ARCH has lessons but NO quiz, explicitly demonstrating the unpublished quiz state!
     gcp_arch = db.scalar(select(TrainingCourse).where(TrainingCourse.course_code == "TR-GCP-ARCH"))
     if gcp_arch:
-        l1 = db.scalar(select(CourseLesson).where(CourseLesson.course_id == gcp_arch.id, CourseLesson.order_index == 1))
+        l1 = db.scalar(
+            select(CourseLesson).where(
+                CourseLesson.course_id == gcp_arch.id, CourseLesson.order_index == 1
+            )
+        )
         if not l1:
-            db.add(CourseLesson(
-                course_id=gcp_arch.id,
-                title="Designing High-Availability Cloud Networks on GCP",
-                description="Google Cloud official architecture overview on VPC peering, Cloud Interconnect, and Global Load Balancing.",
-                provider="Google Cloud Documentation",
-                skill_covered="Cloud Networking",
-                resource_type="DOCUMENTATION",
-                access_type="FREE",
-                external_url="https://cloud.google.com/architecture/framework",
-                content="# Cloud Networking on GCP\nVPC peering, Cloud Interconnect, Shared VPC, and global load balancer topologies.",
-                order_index=1,
-                is_required=True,
-                estimated_minutes=45,
-                is_active=True,
-            ))
-        l2 = db.scalar(select(CourseLesson).where(CourseLesson.course_id == gcp_arch.id, CourseLesson.order_index == 2))
+            db.add(
+                CourseLesson(
+                    course_id=gcp_arch.id,
+                    title="Designing High-Availability Cloud Networks on GCP",
+                    description="Google Cloud official architecture overview on VPC peering, Cloud Interconnect, and Global Load Balancing.",
+                    provider="Google Cloud Documentation",
+                    skill_covered="Cloud Networking",
+                    resource_type="DOCUMENTATION",
+                    access_type="FREE",
+                    external_url="https://cloud.google.com/architecture/framework",
+                    content="# Cloud Networking on GCP\nVPC peering, Cloud Interconnect, Shared VPC, and global load balancer topologies.",
+                    order_index=1,
+                    is_required=True,
+                    estimated_minutes=45,
+                    is_active=True,
+                )
+            )
+        l2 = db.scalar(
+            select(CourseLesson).where(
+                CourseLesson.course_id == gcp_arch.id, CourseLesson.order_index == 2
+            )
+        )
         if not l2:
-            db.add(CourseLesson(
-                course_id=gcp_arch.id,
-                title="Cloud Security & Identity Governance",
-                description="GCP IAM best practices, organization policies, service identity federation, and KMS key management.",
-                provider="Google Cloud Documentation",
-                skill_covered="Cloud Security Governance",
-                resource_type="DOCUMENTATION",
-                access_type="FREE",
-                external_url="https://cloud.google.com/architecture/framework",
-                content="# GCP Identity & Access Management\nOrganization policies, resource hierarchy, service identity federation, and KMS.",
-                order_index=2,
-                is_required=True,
-                estimated_minutes=40,
-                is_active=True,
-            ))
+            db.add(
+                CourseLesson(
+                    course_id=gcp_arch.id,
+                    title="Cloud Security & Identity Governance",
+                    description="GCP IAM best practices, organization policies, service identity federation, and KMS key management.",
+                    provider="Google Cloud Documentation",
+                    skill_covered="Cloud Security Governance",
+                    resource_type="DOCUMENTATION",
+                    access_type="FREE",
+                    external_url="https://cloud.google.com/architecture/framework",
+                    content="# GCP Identity & Access Management\nOrganization policies, resource hierarchy, service identity federation, and KMS.",
+                    order_index=2,
+                    is_required=True,
+                    estimated_minutes=40,
+                    is_active=True,
+                )
+            )
         db.flush()
 
     db.commit()
@@ -1027,12 +1102,16 @@ def seed_learning_and_retention(db: Session) -> None:
     demo_emp = db.scalar(select(Employee).where(Employee.employee_code == "EMP-ENG-018"))
     if demo_emp:
         # 1. TR-PY-FUND -> In Progress (1 lesson completed, 1 opened, quiz ready)
-        py_fund = db.scalar(select(TrainingCourse).where(TrainingCourse.course_code == "TR-PY-FUND"))
+        py_fund = db.scalar(
+            select(TrainingCourse).where(TrainingCourse.course_code == "TR-PY-FUND")
+        )
         if py_fund:
-            enr_py = db.scalar(select(TrainingEnrollment).where(
-                TrainingEnrollment.employee_id == demo_emp.id,
-                TrainingEnrollment.training_course_id == py_fund.id,
-            ))
+            enr_py = db.scalar(
+                select(TrainingEnrollment).where(
+                    TrainingEnrollment.employee_id == demo_emp.id,
+                    TrainingEnrollment.training_course_id == py_fund.id,
+                )
+            )
             if not enr_py:
                 enr_py = TrainingEnrollment(
                     employee_id=demo_emp.id,
@@ -1044,39 +1123,61 @@ def seed_learning_and_retention(db: Session) -> None:
                 db.flush()
 
             # Mark lesson 1 completed, lesson 2 opened
-            lessons_py = db.scalars(select(CourseLesson).where(CourseLesson.course_id == py_fund.id).order_by(CourseLesson.order_index)).all()
+            lessons_py = db.scalars(
+                select(CourseLesson)
+                .where(CourseLesson.course_id == py_fund.id)
+                .order_by(CourseLesson.order_index)
+            ).all()
             if len(lessons_py) >= 1:
-                comp1 = db.scalar(select(LessonCompletion).where(LessonCompletion.enrollment_id == enr_py.id, LessonCompletion.lesson_id == lessons_py[0].id))
+                comp1 = db.scalar(
+                    select(LessonCompletion).where(
+                        LessonCompletion.enrollment_id == enr_py.id,
+                        LessonCompletion.lesson_id == lessons_py[0].id,
+                    )
+                )
                 if not comp1:
-                    db.add(LessonCompletion(
-                        enrollment_id=enr_py.id,
-                        lesson_id=lessons_py[0].id,
-                        employee_id=demo_emp.id,
-                        resource_opened=True,
-                        opened_at=datetime.now() - timedelta(days=8),
-                        is_completed=True,
-                        completed_at=datetime.now() - timedelta(days=8),
-                    ))
+                    db.add(
+                        LessonCompletion(
+                            enrollment_id=enr_py.id,
+                            lesson_id=lessons_py[0].id,
+                            employee_id=demo_emp.id,
+                            resource_opened=True,
+                            opened_at=datetime.now() - timedelta(days=8),
+                            is_completed=True,
+                            completed_at=datetime.now() - timedelta(days=8),
+                        )
+                    )
             if len(lessons_py) >= 2:
-                comp2 = db.scalar(select(LessonCompletion).where(LessonCompletion.enrollment_id == enr_py.id, LessonCompletion.lesson_id == lessons_py[1].id))
+                comp2 = db.scalar(
+                    select(LessonCompletion).where(
+                        LessonCompletion.enrollment_id == enr_py.id,
+                        LessonCompletion.lesson_id == lessons_py[1].id,
+                    )
+                )
                 if not comp2:
-                    db.add(LessonCompletion(
-                        enrollment_id=enr_py.id,
-                        lesson_id=lessons_py[1].id,
-                        employee_id=demo_emp.id,
-                        resource_opened=True,
-                        opened_at=datetime.now() - timedelta(days=2),
-                        is_completed=False,
-                        completed_at=None,
-                    ))
+                    db.add(
+                        LessonCompletion(
+                            enrollment_id=enr_py.id,
+                            lesson_id=lessons_py[1].id,
+                            employee_id=demo_emp.id,
+                            resource_opened=True,
+                            opened_at=datetime.now() - timedelta(days=2),
+                            is_completed=False,
+                            completed_at=None,
+                        )
+                    )
 
         # 2. TR-SQL-FUND -> Enrolled (Ready to start)
-        sql_fund = db.scalar(select(TrainingCourse).where(TrainingCourse.course_code == "TR-SQL-FUND"))
+        sql_fund = db.scalar(
+            select(TrainingCourse).where(TrainingCourse.course_code == "TR-SQL-FUND")
+        )
         if sql_fund:
-            enr_sql = db.scalar(select(TrainingEnrollment).where(
-                TrainingEnrollment.employee_id == demo_emp.id,
-                TrainingEnrollment.training_course_id == sql_fund.id,
-            ))
+            enr_sql = db.scalar(
+                select(TrainingEnrollment).where(
+                    TrainingEnrollment.employee_id == demo_emp.id,
+                    TrainingEnrollment.training_course_id == sql_fund.id,
+                )
+            )
             if not enr_sql:
                 enr_sql = TrainingEnrollment(
                     employee_id=demo_emp.id,
@@ -1089,10 +1190,12 @@ def seed_learning_and_retention(db: Session) -> None:
 
         # 3. TR-GCP-ARCH -> In Progress, demonstrates unpublished quiz
         if gcp_arch:
-            enr_gcp = db.scalar(select(TrainingEnrollment).where(
-                TrainingEnrollment.employee_id == demo_emp.id,
-                TrainingEnrollment.training_course_id == gcp_arch.id,
-            ))
+            enr_gcp = db.scalar(
+                select(TrainingEnrollment).where(
+                    TrainingEnrollment.employee_id == demo_emp.id,
+                    TrainingEnrollment.training_course_id == gcp_arch.id,
+                )
+            )
             if not enr_gcp:
                 enr_gcp = TrainingEnrollment(
                     employee_id=demo_emp.id,
@@ -1108,10 +1211,12 @@ def seed_learning_and_retention(db: Session) -> None:
     # 3. Seed demonstration lesson completions & quiz attempts for existing enrollments
     print("[Seed] 6b Seeding Demonstration Lesson Progress & Quiz Attempts...")
     enrollments = db.scalars(
-        select(TrainingEnrollment)
-        .options(
+        select(TrainingEnrollment).options(
             selectinload(TrainingEnrollment.training_course).selectinload(TrainingCourse.lessons),
-            selectinload(TrainingEnrollment.training_course).selectinload(TrainingCourse.quiz).selectinload(CourseQuiz.questions).selectinload(QuizQuestion.options),
+            selectinload(TrainingEnrollment.training_course)
+            .selectinload(TrainingCourse.quiz)
+            .selectinload(CourseQuiz.questions)
+            .selectinload(QuizQuestion.options),
             selectinload(TrainingEnrollment.lesson_completions),
             selectinload(TrainingEnrollment.quiz_attempts),
         )
@@ -1125,7 +1230,9 @@ def seed_learning_and_retention(db: Session) -> None:
         # If completed, ensure all required lessons have completion records
         if enr.enrollment_status == EnrollmentStatus.COMPLETED:
             for lesson in course.lessons:
-                existing_comp = next((lc for lc in enr.lesson_completions if lc.lesson_id == lesson.id), None)
+                existing_comp = next(
+                    (lc for lc in enr.lesson_completions if lc.lesson_id == lesson.id), None
+                )
                 comp_time = datetime.combine(
                     enr.completion_date or enr.enrollment_date,
                     datetime.min.time(),
@@ -1149,19 +1256,25 @@ def seed_learning_and_retention(db: Session) -> None:
                         existing_comp.completed_at = comp_time
 
             # Ensure a passing quiz attempt exists if course has a quiz
-            if course.quiz and course.quiz.questions and not any(qa.passed for qa in enr.quiz_attempts):
+            if (
+                course.quiz
+                and course.quiz.questions
+                and not any(qa.passed for qa in enr.quiz_attempts)
+            ):
                 score_val = enr.completion_score or Decimal("85.00")
                 breakdown = []
                 for q in course.quiz.questions:
                     corr = next((o for o in q.options if o.is_correct), q.options[0])
-                    breakdown.append({
-                        "question_id": str(q.id),
-                        "question_text": q.question_text,
-                        "selected_option_id": str(corr.id),
-                        "correct_option_id": str(corr.id),
-                        "is_correct": True,
-                        "explanation": q.explanation,
-                    })
+                    breakdown.append(
+                        {
+                            "question_id": str(q.id),
+                            "question_text": q.question_text,
+                            "selected_option_id": str(corr.id),
+                            "correct_option_id": str(corr.id),
+                            "is_correct": True,
+                            "explanation": q.explanation,
+                        }
+                    )
 
                 db.add(
                     QuizAttempt(
@@ -1210,7 +1323,9 @@ def seed_learning_and_retention(db: Session) -> None:
     completed_enrs = db.scalars(
         select(TrainingEnrollment)
         .options(
-            selectinload(TrainingEnrollment.training_course).selectinload(TrainingCourse.training_skills),
+            selectinload(TrainingEnrollment.training_course).selectinload(
+                TrainingCourse.training_skills
+            ),
             selectinload(TrainingEnrollment.employee),
         )
         .where(TrainingEnrollment.enrollment_status == EnrollmentStatus.COMPLETED)
@@ -1338,7 +1453,9 @@ def seed_learning_and_retention(db: Session) -> None:
         title, i_type, i_status, outcome, notes, outcome_notes = tmpl
 
         offered = rec.generated_at.date() + timedelta(days=2)
-        completed = offered + timedelta(days=14) if i_status == InterventionStatus.COMPLETED else None
+        completed = (
+            offered + timedelta(days=14) if i_status == InterventionStatus.COMPLETED else None
+        )
         follow_up = offered + timedelta(days=90)
 
         intervention = RetentionIntervention(

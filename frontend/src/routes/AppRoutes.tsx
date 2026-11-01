@@ -93,12 +93,12 @@ export default function AppRoutes() {
                   <Route path="/employees" element={<EmployeesPage />} />
                   <Route path="/employees/:id" element={<EmployeeDetailsPage />} />
                   <Route path="/departments" element={<DepartmentsPage />} />
+                  <Route path="/audit-logs" element={<AuditLogsPage />} />
                 </Route>
 
                 {/* HR Admin Restricted Pages (System Governance) */}
                 <Route element={<ProtectedRoute allowedRoles={["HR_ADMIN"]} />}>
                   <Route path="/users" element={<UsersPage />} />
-                  <Route path="/audit-logs" element={<AuditLogsPage />} />
                 </Route>
 
                 {/* HR Manager Restricted Pages (Workforce Analytics & Decisions) */}

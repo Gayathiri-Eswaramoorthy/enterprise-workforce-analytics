@@ -5,7 +5,7 @@ QuizAttempt database model.
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.database import BaseModel
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, func

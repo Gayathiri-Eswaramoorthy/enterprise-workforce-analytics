@@ -7,16 +7,22 @@ Automated tests for Skill Assessments:
 """
 
 from decimal import Decimal
-import pytest
+
+from app.models import (
+    Employee,
+    EmployeeSkill,
+    Skill,
+    TrainingCourse,
+    User,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database import AssessmentType
-from app.models import Employee, EmployeeSkill, RoleSkill, Skill, SkillAssessment, TrainingCourse, User
 
-
-def test_create_skill_assessment_by_hr(client: TestClient, admin_headers: dict, db_session: Session):
+def test_create_skill_assessment_by_hr(
+    client: TestClient, admin_headers: dict, db_session: Session
+):
     """HR user can record baseline and post-training skill assessments."""
     emp = db_session.scalars(select(Employee)).first()
     skill = db_session.scalars(select(Skill)).first()
@@ -44,7 +50,9 @@ def test_create_skill_assessment_by_hr(client: TestClient, admin_headers: dict, 
     assert data["assessed_proficiency"] == 2
 
 
-def test_employee_forbidden_from_recording_assessment(client: TestClient, employee_headers: dict, db_session: Session):
+def test_employee_forbidden_from_recording_assessment(
+    client: TestClient, employee_headers: dict, db_session: Session
+):
     """Employees cannot record assessments for themselves or others."""
     emp = db_session.scalars(select(Employee)).first()
     skill = db_session.scalars(select(Skill)).first()
@@ -61,7 +69,9 @@ def test_employee_forbidden_from_recording_assessment(client: TestClient, employ
     assert resp.status_code == 403
 
 
-def test_baseline_and_post_training_score_delta(client: TestClient, admin_headers: dict, db_session: Session):
+def test_baseline_and_post_training_score_delta(
+    client: TestClient, admin_headers: dict, db_session: Session
+):
     """Test paired baseline vs post-training score delta calculation in percentage points."""
     employees = db_session.scalars(select(Employee)).all()
     skills = db_session.scalars(select(Skill)).all()
@@ -160,9 +170,7 @@ def test_employee_assessment_data_isolation(
     assert emp_user is not None and emp_user.employee_profile is not None
     demo_emp_id = emp_user.employee_profile.id
 
-    other_emp = db_session.scalars(
-        select(Employee).where(Employee.id != demo_emp_id)
-    ).first()
+    other_emp = db_session.scalars(select(Employee).where(Employee.id != demo_emp_id)).first()
     assert other_emp is not None
 
     # Employee requesting other employee's comparisons -> 403 Forbidden

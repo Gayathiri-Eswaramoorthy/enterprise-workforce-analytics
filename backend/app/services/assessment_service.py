@@ -203,7 +203,11 @@ class AssessmentService:
 
             is_improved = score_delta is not None and score_delta > Decimal("0.00")
 
-            related_course = post.training_course if post and post.training_course else (baseline.training_course if baseline else None)
+            related_course = (
+                post.training_course
+                if post and post.training_course
+                else (baseline.training_course if baseline else None)
+            )
 
             comparisons.append(
                 SkillAssessmentComparison(

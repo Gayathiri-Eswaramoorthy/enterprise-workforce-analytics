@@ -21,7 +21,7 @@ audit_service = AuditService()
     response_model=dict,
     status_code=status.HTTP_200_OK,
     summary="List Audit Logs",
-    description="Inspect audit logs for system operations. Restricted to HR Administrators.",
+    description="Inspect audit logs for system operations. Accessible to HR Administrators and HR Managers for compliance oversight.",
 )
 def list_audit_logs(
     entity_name: str | None = Query(None, description="Filter by entity name"),
@@ -32,7 +32,7 @@ def list_audit_logs(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles([UserRole.HR_ADMIN])),
+    current_user: User = Depends(require_roles([UserRole.HR_ADMIN, UserRole.HR_MANAGER])),
 ) -> dict:
     items, total = audit_service.list_audit_logs(
         db=db,

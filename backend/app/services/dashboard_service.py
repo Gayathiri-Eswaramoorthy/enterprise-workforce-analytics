@@ -39,7 +39,6 @@ class DashboardService:
     def __init__(self):
         self.skill_gap_service = SkillGapService()
 
-
     def get_dashboard_metrics(self, db: Session) -> DashboardMetrics:
         # Total and active employees
         total_employees = db.execute(select(func.count(Employee.id))).scalar() or 0
@@ -273,15 +272,15 @@ class DashboardService:
         # Total and active users
         total_users = db.execute(select(func.count(User.id))).scalar() or 0
         active_users = (
-            db.execute(select(func.count(User.id)).where(User.is_active == True)).scalar()  # noqa: E712
+            db.execute(
+                select(func.count(User.id)).where(User.is_active == True)
+            ).scalar()  # noqa: E712
             or 0
         )
         inactive_users = total_users - active_users
 
         # Users by role breakdown
-        role_counts = db.execute(
-            select(User.role, func.count(User.id)).group_by(User.role)
-        ).all()
+        role_counts = db.execute(select(User.role, func.count(User.id)).group_by(User.role)).all()
         users_by_role: dict[str, int] = {
             r.value if hasattr(r, "value") else str(r): count for r, count in role_counts
         }
@@ -336,16 +335,18 @@ class DashboardService:
             .order_by(func.count(AuditLog.id).desc())
             .limit(6)
         ).all()
-        audit_action_counts = [
-            AuditActionCount(action=row[0], count=row[1]) for row in action_rows
-        ]
+        audit_action_counts = [AuditActionCount(action=row[0], count=row[1]) for row in action_rows]
 
         # Active ML model
-        active_model = db.execute(
-            select(ModelRegistry)
-            .where(ModelRegistry.is_active == True)  # noqa: E712
-            .order_by(ModelRegistry.created_at.desc())
-        ).scalars().first()
+        active_model = (
+            db.execute(
+                select(ModelRegistry)
+                .where(ModelRegistry.is_active == True)  # noqa: E712
+                .order_by(ModelRegistry.created_at.desc())
+            )
+            .scalars()
+            .first()
+        )
         active_model_version = active_model.model_version if active_model else "v2.0.0-ibm"
 
         return SystemOverviewMetrics(
@@ -363,4 +364,3 @@ class DashboardService:
             active_model_version=active_model_version,
             system_status="HEALTHY",
         )
-

@@ -8,6 +8,10 @@ import {
   Briefcase,
   Building2,
   Cpu,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Network,
   Pencil,
   Plus,
   Search,
@@ -18,6 +22,9 @@ import {
 import { Kpi } from "../components/Kpi";
 import { Field, Modal } from "../components/Modal";
 import { RISK_COLOR, RISK_LABEL, RISK_LEVELS, countByLevel, type RiskCounts } from "../lib/risk";
+import { OrgChartTree } from "../components/OrgChartTree";
+import { ExportReportsModal } from "../components/ExportReportsModal";
+import { exportDepartmentSkillGaps, type DeptSkillGapExportData } from "../utils/exportReports";
 
 type SortKey = "name" | "people" | "risk";
 type StatusFilter = "all" | "active" | "inactive";
@@ -70,6 +77,27 @@ export const DepartmentsPage: React.FC = () => {
   const [form, setForm] = useState<DeptForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const [viewMode, setViewMode] = useState<"DIRECTORY" | "ORG_CHART">("DIRECTORY");
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const handleExportDeptGaps = (format: "csv" | "pdf") => {
+    setShowExportMenu(false);
+    const exportData: DeptSkillGapExportData[] = departments.map((d) => {
+      const s = stats.get(d.id);
+      return {
+        departmentCode: d.department_code,
+        departmentName: d.name,
+        headcount: s?.people ?? 0,
+        atRiskCount: s?.atRisk ?? 0,
+        criticalGapsCount: s?.criticalGaps ?? 0,
+        avgProficiencyScore: s?.avgScore ? s.avgScore * 100 : null,
+        status: d.is_active !== false ? "ACTIVE" : "INACTIVE",
+      };
+    });
+    exportDepartmentSkillGaps(format, exportData);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -229,21 +257,102 @@ export const DepartmentsPage: React.FC = () => {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-semibold leading-tight text-ink">Departments</h1>
-          <p className="text-[13.5px] text-ink-2">
+          <p className="text-[13.5px] text-ink-2 mt-0.5">
             Teams across the organization, with headcount, retention risk and skill gaps at a glance.
           </p>
         </div>
-        {isAdmin && (
-          <button onClick={() => openEditor("new")} className="btn btn-primary">
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add Department
-          </button>
-        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* View Switcher: Directory vs Org Hierarchy */}
+          <div className="well flex p-0.5" role="group" aria-label="Department Views">
+            <button
+              onClick={() => setViewMode("DIRECTORY")}
+              aria-pressed={viewMode === "DIRECTORY"}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                viewMode === "DIRECTORY" ? "bg-panel text-ink shadow-card font-semibold" : "text-ink-2 hover:text-ink"
+              }`}
+            >
+              <Building2 className="h-4 w-4" />
+              <span>Directory Grid</span>
+            </button>
+            <button
+              onClick={() => setViewMode("ORG_CHART")}
+              aria-pressed={viewMode === "ORG_CHART"}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                viewMode === "ORG_CHART" ? "bg-panel text-link shadow-card font-semibold" : "text-ink-2 hover:text-ink"
+              }`}
+            >
+              <Network className="h-4 w-4 text-accent" />
+              <span>Org Hierarchy & Risk Clusters</span>
+            </button>
+          </div>
+
+          {/* Export Reports Dropdown for HR */}
+          {isHr && (
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="rounded-lg border border-rule bg-panel px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-sunken transition-colors inline-flex items-center gap-2"
+              >
+                <Download className="h-4 w-4 text-ink-3" />
+                <span>Export Reports</span>
+              </button>
+
+              {showExportMenu && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowExportMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 z-30 w-60 rounded-xl border border-rule bg-panel py-1.5 shadow-xl animate-in fade-in">
+                    <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-ink-3">
+                      Skill-Gap Matrix
+                    </div>
+                    <button
+                      onClick={() => handleExportDeptGaps("csv")}
+                      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12.5px] text-ink hover:bg-sunken"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                      <span>Skill-Gap Matrix (CSV)</span>
+                    </button>
+                    <button
+                      onClick={() => handleExportDeptGaps("pdf")}
+                      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12.5px] text-ink hover:bg-sunken"
+                    >
+                      <FileText className="h-4 w-4 text-rose-600" />
+                      <span>Skill-Gap Report (PDF)</span>
+                    </button>
+
+                    <div className="border-t border-rule-soft my-1" />
+                    <button
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        setShowExportModal(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12.5px] font-medium text-link hover:bg-accent-soft"
+                    >
+                      <Download className="h-4 w-4 text-accent" />
+                      <span>All Export Reports...</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {isAdmin && (
+            <button onClick={() => openEditor("new")} className="btn btn-primary">
+              <Plus className="h-4 w-4" aria-hidden="true" /> Add Department
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Summary */}
-      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${isHr ? "xl:grid-cols-4" : "xl:grid-cols-2"}`}>
-        <Kpi icon={Building2} label="Departments" value={departments.length} />
-        <Kpi icon={Users} label="Total employees" value={totals.people} />
+      {viewMode === "ORG_CHART" ? (
+        <OrgChartTree employees={employees} departments={departments} />
+      ) : (
+        <>
+          {/* Summary */}
+          <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${isHr ? "xl:grid-cols-4" : "xl:grid-cols-2"}`}>
+            <Kpi icon={Building2} label="Departments" value={departments.length} />
+            <Kpi icon={Users} label="Total employees" value={totals.people} />
         {isHr && (
           <>
             <Kpi
@@ -521,6 +630,8 @@ export const DepartmentsPage: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {editing && (
         <Modal
@@ -594,6 +705,14 @@ export const DepartmentsPage: React.FC = () => {
           </form>
         </Modal>
       )}
+
+      {/* Reports Export Modal */}
+      <ExportReportsModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        departments={departments}
+        employees={employees}
+      />
     </div>
   );
 };

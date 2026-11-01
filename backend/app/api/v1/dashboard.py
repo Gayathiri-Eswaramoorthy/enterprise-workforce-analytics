@@ -46,4 +46,3 @@ def get_admin_overview(
     current_user: User = Depends(require_admin),
 ) -> SystemOverviewMetrics:
     return dashboard_service.get_admin_overview(db=db)
-

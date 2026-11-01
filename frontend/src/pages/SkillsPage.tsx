@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import api, { getErrorMessage } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import type { EmployeeSkill, Skill } from "../types";
-import { Cpu, Flag, Layers, Pencil, Plus, Search, Tags, TriangleAlert, Users } from "lucide-react";
+import { Cpu, Download, FileSpreadsheet, FileText, Flag, Layers, Pencil, Plus, Search, Tags, TriangleAlert, Users } from "lucide-react";
 import { Kpi } from "../components/Kpi";
 import { Field, Modal } from "../components/Modal";
 import { FacetGroup, toggled } from "../components/FacetGroup";
 import { Pager } from "../components/Pager";
+import { downloadCsv, openFormattedPdfReport } from "../utils/exportReports";
 
 const PAGE_SIZE = 9;
 
@@ -75,6 +76,79 @@ export const SkillsPage: React.FC = () => {
   const [form, setForm] = useState<SkillForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const handleExportSkills = (format: "csv" | "pdf") => {
+    setShowExportMenu(false);
+    const headers = [
+      "Skill Code",
+      "Skill Name",
+      "Category",
+      "Affected Headcount",
+      "Mandatory Gaps",
+      "Average Gap",
+      "Status",
+    ];
+
+    if (format === "csv") {
+      const rows = skills.map((s) => {
+        const gap = gapBySkill[s.id];
+        return [
+          s.skill_code,
+          s.name,
+          s.skill_category,
+          gap?.affected ?? 0,
+          gap?.mandatory ?? 0,
+          gap?.avgGap ? gap.avgGap.toFixed(1) : "0.0",
+          s.is_active !== false ? "ACTIVE" : "INACTIVE",
+        ];
+      });
+      downloadCsv(`Workforce_Skill_Gap_Matrix_${new Date().toISOString().split("T")[0]}`, headers, rows);
+      return;
+    }
+
+    // Formatted PDF Report
+    const totalAffected = Object.values(gapBySkill).reduce((acc, g) => acc + (g.affected || 0), 0);
+    const totalMandatory = Object.values(gapBySkill).reduce((acc, g) => acc + (g.mandatory || 0), 0);
+    const skillsWithGapsCount = Object.values(gapBySkill).filter((g) => (g.affected || 0) > 0).length;
+
+    const tableRows: (string | number | { text: string; badge?: "low" | "medium" | "high" | "critical" | "neutral" })[][] = skills.map((s) => {
+      const gap = gapBySkill[s.id];
+      const affected = gap?.affected ?? 0;
+      const mandatory = gap?.mandatory ?? 0;
+      const affectedBadge: "critical" | "medium" | "low" = affected > 5 ? "critical" : affected > 0 ? "medium" : "low";
+      const mandatoryBadge: "critical" | "neutral" = mandatory > 0 ? "critical" : "neutral";
+      const statusBadge: "low" | "neutral" = s.is_active !== false ? "low" : "neutral";
+      return [
+        s.skill_code,
+        s.name,
+        s.skill_category,
+        { text: String(affected), badge: affectedBadge },
+        { text: String(mandatory), badge: mandatoryBadge },
+        gap?.avgGap ? gap.avgGap.toFixed(1) : "0.0",
+        { text: s.is_active !== false ? "ACTIVE" : "INACTIVE", badge: statusBadge },
+      ];
+    });
+
+    openFormattedPdfReport({
+      title: "Workforce Skill-Gap & Competency Matrix Report",
+      subtitle: "Enterprise-wide technical capability mapping, role requirements, and priority training deficits",
+      reportCode: "REP-SKILL-DEFICIT-04",
+      generatedBy: "HR Talent & Learning",
+      kpis: [
+        { label: "Catalog Skills", value: skills.length, subtext: "Active competencies" },
+        { label: "Skills with Gaps", value: skillsWithGapsCount, tone: "warning", subtext: "Deficiencies observed" },
+        { label: "Mandatory Gaps", value: totalMandatory, tone: "danger", subtext: "Contractual role requirements" },
+        { label: "Total Gap Instances", value: totalAffected, tone: "accent", subtext: "Employees impacted" },
+      ],
+      tableHeaders: headers,
+      tableRows,
+      summaryNotes: [
+        "A skill gap indicates an employee's verified proficiency level is below the baseline requirement for their role.",
+        "Mandatory gaps represent critical job performance dependencies and should be scheduled for training enrollment.",
+      ],
+    });
+  };
 
   const load = useCallback(async () => {
     try {
@@ -225,9 +299,46 @@ export const SkillsPage: React.FC = () => {
           </p>
         </div>
         {isHr && (
-          <button onClick={() => openEditor("new")} className="btn btn-primary">
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add Skill
-          </button>
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="rounded-lg border border-rule bg-panel px-3 py-2 text-[13px] font-medium text-ink hover:bg-sunken transition-colors inline-flex items-center gap-2"
+              >
+                <Download className="h-4 w-4 text-ink-3" />
+                <span>Export Skill Gaps</span>
+              </button>
+
+              {showExportMenu && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowExportMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 z-30 w-56 rounded-xl border border-rule bg-panel py-1.5 shadow-xl animate-in fade-in">
+                    <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-3">
+                      Export Format
+                    </div>
+                    <button
+                      onClick={() => handleExportSkills("csv")}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink hover:bg-sunken"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                      <span>Download CSV Matrix</span>
+                    </button>
+                    <button
+                      onClick={() => handleExportSkills("pdf")}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink hover:bg-sunken"
+                    >
+                      <FileText className="h-4 w-4 text-rose-600" />
+                      <span>Executive PDF Report</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button onClick={() => openEditor("new")} className="btn btn-primary">
+              <Plus className="h-4 w-4" aria-hidden="true" /> Add Skill
+            </button>
+          </div>
         )}
       </div>
 

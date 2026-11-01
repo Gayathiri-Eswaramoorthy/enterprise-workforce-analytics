@@ -19,26 +19,6 @@ from app.schemas.audit_log import (
     AuditLogFilter,
     AuditLogResponse,
 )
-from app.schemas.learning import (
-    CourseLessonResponse,
-    CourseLessonSummary,
-    CourseQuizPublicResponse,
-    HRLearningCourseSummary,
-    HRLearningEnrollmentDetail,
-    MyCourseProgressResponse,
-    QuizAttemptResponse,
-    QuizOptionFeedbackResponse,
-    QuizOptionPublicResponse,
-    QuizQuestionPublicResponse,
-    QuizQuestionResult,
-    QuizSubmissionItem,
-    QuizSubmissionRequest,
-)
-from app.schemas.retention import (
-    RetentionInterventionCreate,
-    RetentionInterventionResponse,
-    RetentionInterventionUpdate,
-)
 from app.schemas.auth import (
     CurrentUserResponse,
     LoginRequest,
@@ -64,6 +44,21 @@ from app.schemas.job_role import (
     RoleSkillRequirement,
     RoleSkillResponse,
 )
+from app.schemas.learning import (
+    CourseLessonResponse,
+    CourseLessonSummary,
+    CourseQuizPublicResponse,
+    HRLearningCourseSummary,
+    HRLearningEnrollmentDetail,
+    MyCourseProgressResponse,
+    QuizAttemptResponse,
+    QuizOptionFeedbackResponse,
+    QuizOptionPublicResponse,
+    QuizQuestionPublicResponse,
+    QuizQuestionResult,
+    QuizSubmissionItem,
+    QuizSubmissionRequest,
+)
 from app.schemas.notification import (
     NotificationCreate,
     NotificationResponse,
@@ -88,6 +83,11 @@ from app.schemas.recommendation import (
     RecommendationCreate,
     RecommendationResponse,
     RecommendationStatusUpdate,
+)
+from app.schemas.retention import (
+    RetentionInterventionCreate,
+    RetentionInterventionResponse,
+    RetentionInterventionUpdate,
 )
 from app.schemas.skill import (
     EmployeeSkillCreate,
