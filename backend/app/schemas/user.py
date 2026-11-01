@@ -33,6 +33,8 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: UUID
     last_login: datetime | None = None
+    employee_code: str | None = None
+    department_code: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -119,3 +119,13 @@ class User(BaseModel):
         "RetentionIntervention",
         back_populates="hr_user",
     )
+
+    @property
+    def employee_code(self) -> str | None:
+        return self.employee_profile.employee_code if self.employee_profile else None
+
+    @property
+    def department_code(self) -> str | None:
+        if self.employee_profile and self.employee_profile.department:
+            return self.employee_profile.department.department_code
+        return None

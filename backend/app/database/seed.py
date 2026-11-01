@@ -1914,6 +1914,15 @@ def seed_database():
 
         seed_learning_and_retention(db)
 
+        # 9. Seed Extended Enterprise User Profiles (55 accounts across HR_ADMIN, HR_MANAGER, EMPLOYEE)
+        from app.database.seed_users import seed_extended_users
+
+        user_stats = seed_extended_users(db)
+        print(
+            f"[Seed] 9/9 Seeded 55 Enterprise User Profiles ({user_stats['created']} created, "
+            f"{user_stats['updated']} updated, {user_stats['linked']} employee links synced)."
+        )
+
         print("[Seed] Database seeding completed successfully!")
 
     except Exception as e:

@@ -22,6 +22,8 @@ interface UserItem {
   display_name: string | null;
   role: UserRole;
   is_active: boolean;
+  employee_code?: string | null;
+  department_code?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -171,7 +173,7 @@ export const UsersPage: React.FC = () => {
             <ShieldCheck className="h-6 w-6 text-indigo-600" /> User & Role Management
           </h1>
           <p className="text-xs text-slate-600 mt-1">
-            HR Admin governance: manage login credentials, role assignments, and access permissions.
+            HR Admin governance: manage {total} corporate login accounts, role assignments, and access permissions.
           </p>
         </div>
         <button
@@ -229,10 +231,16 @@ export const UsersPage: React.FC = () => {
             onChange={(e) => setRoleFilter(e.target.value)}
             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500"
           >
-            <option value="ALL">All Roles ({total})</option>
-            <option value="HR_ADMIN">HR Admin</option>
-            <option value="HR_MANAGER">HR Manager</option>
-            <option value="EMPLOYEE">Employee</option>
+            <option value="ALL">All Roles ({users.length})</option>
+            <option value="HR_ADMIN">
+              HR Admin ({users.filter((u) => u.role === "HR_ADMIN").length})
+            </option>
+            <option value="HR_MANAGER">
+              HR Manager ({users.filter((u) => u.role === "HR_MANAGER").length})
+            </option>
+            <option value="EMPLOYEE">
+              Employee ({users.filter((u) => u.role === "EMPLOYEE").length})
+            </option>
           </select>
         </div>
       </div>
@@ -252,7 +260,7 @@ export const UsersPage: React.FC = () => {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 <th className="py-3 px-4">User</th>
-                <th className="py-3 px-4">Display Name</th>
+                <th className="py-3 px-4">Display Name & Profile</th>
                 <th className="py-3 px-4">Assigned Role</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4">Created</th>
@@ -286,7 +294,23 @@ export const UsersPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-slate-700">
-                        {u.display_name || <span className="text-slate-400 italic">None</span>}
+                        <div className="font-medium text-slate-900">
+                          {u.display_name || <span className="text-slate-400 italic">None</span>}
+                        </div>
+                        {u.employee_code ? (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="inline-flex items-center rounded bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-indigo-700">
+                              {u.employee_code}
+                            </span>
+                            {u.department_code && (
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                Dept: {u.department_code}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic">System Administrator</span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <span

@@ -425,6 +425,104 @@ export const LoginPage: React.FC = () => {
               })}
             </div>
 
+            {/* Quick Profile Selector for Demo Presentations */}
+            <div className="mt-3.5 rounded-xl border border-indigo-100 bg-indigo-50/40 p-2.5">
+              <label htmlFor="quick-demo-profile" className="block text-[10.5px] font-semibold text-indigo-900 uppercase tracking-wider mb-1">
+                Browse 55 Demo Enterprise Profiles:
+              </label>
+              <select
+                id="quick-demo-profile"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-500 shadow-sm"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setEmail(e.target.value);
+                    setPassword(DEMO_PASSWORD);
+                    const selectedOpt = e.target.selectedOptions[0];
+                    const r = (selectedOpt?.getAttribute("data-role") as RoleId) || "employee";
+                    setRole(r);
+                    setError(null);
+                  }
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Switch profile: Pick any Department Head, Employee, or Admin...
+                </option>
+                <optgroup label="👑 HR Administrators (Governance & Global Admin)">
+                  <option value="admin@workforce.local" data-role="admin">
+                    Eleanor Vance — Chief People Officer (admin@workforce.local)
+                  </option>
+                  <option value="clara.adams@workforce.local" data-role="admin">
+                    Clara Adams — VP of People & Culture (clara.adams@workforce.local)
+                  </option>
+                  <option value="priya.sharma@workforce.local" data-role="admin">
+                    Priya Sharma — HRIS & Compliance Director (priya.sharma@workforce.local)
+                  </option>
+                  <option value="samuel.green@workforce.local" data-role="admin">
+                    Samuel Green — Head of Global Talent (samuel.green@workforce.local)
+                  </option>
+                </optgroup>
+                <optgroup label="👔 Department Heads & Managers (Org Hierarchy & Branch Risk)">
+                  <option value="james.white1@workforce.local" data-role="manager">
+                    James White — Engineering Head (james.white1@workforce.local)
+                  </option>
+                  <option value="jennifer.perez23@workforce.local" data-role="manager">
+                    Jennifer Perez — Product Head (jennifer.perez23@workforce.local)
+                  </option>
+                  <option value="thomas.wilson31@workforce.local" data-role="manager">
+                    Thomas Wilson — Marketing Head (thomas.wilson31@workforce.local)
+                  </option>
+                  <option value="barbara.thomas39@workforce.local" data-role="manager">
+                    Barbara Thomas — Sales Head (barbara.thomas39@workforce.local)
+                  </option>
+                  <option value="dorothy.martin46@workforce.local" data-role="manager">
+                    Dorothy Martin — HR Head (dorothy.martin46@workforce.local)
+                  </option>
+                  <option value="harper.russo153@workforce.local" data-role="manager">
+                    Harper Russo — Finance Head (harper.russo153@workforce.local)
+                  </option>
+                  <option value="maya.simon171@workforce.local" data-role="manager">
+                    Maya Simon — Operations Head (maya.simon171@workforce.local)
+                  </option>
+                  <option value="nora.johansson189@workforce.local" data-role="manager">
+                    Nora Johansson — Legal Head (nora.johansson189@workforce.local)
+                  </option>
+                  <option value="user@workforce.local" data-role="manager">
+                    Marcus Thorne — People Partner Lead (user@workforce.local)
+                  </option>
+                </optgroup>
+                <optgroup label="👤 Employees (Self-Service Dashboard, Personal Skills & Courses)">
+                  <option value="demo@workforce.local" data-role="employee">
+                    Sarah Johnson — Senior Software Engineer (demo@workforce.local)
+                  </option>
+                  <option value="jessica.jones6@workforce.local" data-role="employee">
+                    Jessica Jones — Frontend Engineer (jessica.jones6@workforce.local)
+                  </option>
+                  <option value="paul.martinez3@workforce.local" data-role="employee">
+                    Paul Martinez — Senior ML Engineer (paul.martinez3@workforce.local)
+                  </option>
+                  <option value="deborah.jackson30@workforce.local" data-role="employee">
+                    Deborah Jackson — Senior Product Manager (deborah.jackson30@workforce.local)
+                  </option>
+                  <option value="robert.lee32@workforce.local" data-role="employee">
+                    Robert Lee — Growth Marketing Lead (robert.lee32@workforce.local)
+                  </option>
+                  <option value="carol.thompson40@workforce.local" data-role="employee">
+                    Carol Thompson — Enterprise Account Executive (carol.thompson40@workforce.local)
+                  </option>
+                  <option value="julian.silva154@workforce.local" data-role="employee">
+                    Julian Silva — Senior Financial Analyst (julian.silva154@workforce.local)
+                  </option>
+                  <option value="jaxon.lindberg172@workforce.local" data-role="employee">
+                    Jaxon Lindberg — Business Operations Lead (jaxon.lindberg172@workforce.local)
+                  </option>
+                  <option value="anna.lindberg190@workforce.local" data-role="employee">
+                    Anna Lindberg — Compliance Specialist (anna.lindberg190@workforce.local)
+                  </option>
+                </optgroup>
+              </select>
+            </div>
+
             {error && (
               <div
                 role="alert"
