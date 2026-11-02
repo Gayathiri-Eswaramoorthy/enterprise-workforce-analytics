@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useState, useEffect, useCallback } from "react";
 import api, { getErrorMessage } from "../services/api";
 import type { UserRole } from "../types";
@@ -369,8 +370,8 @@ export const UsersPage: React.FC = () => {
       )}
 
       {/* Create User Modal */}
-      {createModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+      {createModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && setCreateModal(false)}>
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -462,12 +463,13 @@ export const UsersPage: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Edit User Modal */}
-      {editUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+      {editUser && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && setEditUser(null)}>
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -544,7 +546,8 @@ export const UsersPage: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

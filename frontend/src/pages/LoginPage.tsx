@@ -13,6 +13,7 @@ import {
   Info,
   Lock,
   Mail,
+  Search,
   Target,
   TrendingUp,
   User,
@@ -34,6 +35,64 @@ const ROLES = [
 ] as const;
 
 type RoleId = (typeof ROLES)[number]["id"];
+
+export interface EmployeeProfile {
+  sno: number;
+  name: string;
+  title: string;
+  email: string;
+}
+
+const EMPLOYEE_PROFILES: EmployeeProfile[] = [
+  { sno: 1, name: "Sarah Johnson", title: "Senior Software Engineer", email: "demo@workforce.local" },
+  { sno: 2, name: "Adam Johansson", title: "Senior Financial Analyst", email: "adam.johansson157@workforce.local" },
+  { sno: 3, name: "Adrian Kaminski", title: "Senior Financial Analyst", email: "adrian.kaminski159@workforce.local" },
+  { sno: 4, name: "Amelia Kim", title: "Financial Analyst", email: "amelia.kim155@workforce.local" },
+  { sno: 5, name: "Amelia Walsh", title: "Systems Administrator", email: "amelia.walsh176@workforce.local" },
+  { sno: 6, name: "Andrew Rodriguez", title: "Senior Software Engineer", email: "andrew.rodriguez22@workforce.local" },
+  { sno: 7, name: "Andrew Wilson", title: "HR Business Partner", email: "andrew.wilson50@workforce.local" },
+  { sno: 8, name: "Anna Lindberg", title: "Regulatory Compliance Specialist", email: "anna.lindberg190@workforce.local" },
+  { sno: 9, name: "Anthony Smith", title: "Lead Software Architect", email: "anthony.smith20@workforce.local" },
+  { sno: 10, name: "Barbara Thomas", title: "Enterprise Account Executive", email: "barbara.thomas39@workforce.local" },
+  { sno: 11, name: "Carol Thompson", title: "Enterprise Account Executive", email: "carol.thompson40@workforce.local" },
+  { sno: 12, name: "Casey Patel", title: "Senior Product Manager", email: "casey.patel90@workforce.local" },
+  { sno: 13, name: "Daniel Lopez", title: "Lead Software Architect", email: "daniel.lopez4@workforce.local" },
+  { sno: 14, name: "David Sanchez", title: "Senior Product Manager", email: "david.sanchez27@workforce.local" },
+  { sno: 15, name: "Deborah Jackson", title: "Senior Product Manager", email: "deborah.jackson30@workforce.local" },
+  { sno: 16, name: "Donna Martin", title: "Enterprise Account Executive", email: "donna.martin45@workforce.local" },
+  { sno: 17, name: "Dorothy Anderson", title: "Enterprise Account Executive", email: "dorothy.anderson41@workforce.local" },
+  { sno: 18, name: "Dorothy Martin", title: "HR Business Partner", email: "dorothy.martin46@workforce.local" },
+  { sno: 19, name: "George Thomas", title: "Senior Software Engineer", email: "george.thomas9@workforce.local" },
+  { sno: 20, name: "Harper Russo", title: "Finance Manager", email: "harper.russo153@workforce.local" },
+  { sno: 21, name: "James Jackson", title: "Enterprise Account Executive", email: "james.jackson43@workforce.local" },
+  { sno: 22, name: "James White", title: "Lead Software Architect", email: "james.white1@workforce.local" },
+  { sno: 23, name: "Jaxon Lindberg", title: "Business Operations Lead", email: "jaxon.lindberg172@workforce.local" },
+  { sno: 24, name: "Jennifer Perez", title: "Senior Product Manager", email: "jennifer.perez23@workforce.local" },
+  { sno: 25, name: "Jessica Jones", title: "Frontend Engineer", email: "jessica.jones6@workforce.local" },
+  { sno: 26, name: "John Gonzalez", title: "Senior Machine Learning Engineer", email: "john.gonzalez12@workforce.local" },
+  { sno: 27, name: "Joseph Perez", title: "HR Business Partner", email: "joseph.perez49@workforce.local" },
+  { sno: 28, name: "Julian Silva", title: "Senior Financial Analyst", email: "julian.silva154@workforce.local" },
+  { sno: 29, name: "Linda Anderson", title: "HR Business Partner", email: "linda.anderson48@workforce.local" },
+  { sno: 30, name: "Linda Moore", title: "HR Business Partner", email: "linda.moore47@workforce.local" },
+  { sno: 31, name: "Lisa Hernandez", title: "Senior Product Manager", email: "lisa.hernandez29@workforce.local" },
+  { sno: 32, name: "Margaret Wilson", title: "Growth Marketing Lead", email: "margaret.wilson38@workforce.local" },
+  { sno: 33, name: "Mark Martin", title: "Senior Software Engineer", email: "mark.martin16@workforce.local" },
+  { sno: 34, name: "Maya Simon", title: "Director of Operations", email: "maya.simon171@workforce.local" },
+  { sno: 35, name: "Melissa Garcia", title: "Senior Product Manager", email: "melissa.garcia25@workforce.local" },
+  { sno: 36, name: "Nathan Ortiz", title: "Systems Administrator", email: "nathan.ortiz174@workforce.local" },
+  { sno: 37, name: "Nora Johansson", title: "Senior Corporate Counsel", email: "nora.johansson189@workforce.local" },
+  { sno: 38, name: "Paul Martinez", title: "Senior Machine Learning Engineer", email: "paul.martinez3@workforce.local" },
+  { sno: 39, name: "Penelope Eriksson", title: "Regulatory Compliance Specialist", email: "penelope.eriksson191@workforce.local" },
+  { sno: 40, name: "Richard Clark", title: "Growth Marketing Lead", email: "richard.clark34@workforce.local" },
+  { sno: 41, name: "Richard Martinez", title: "Enterprise Account Executive", email: "richard.martinez42@workforce.local" },
+  { sno: 42, name: "Richard Martinez", title: "Lead Software Architect", email: "richard.martinez14@workforce.local" },
+  { sno: 43, name: "Robert Jackson", title: "Growth Marketing Lead", email: "robert.jackson36@workforce.local" },
+  { sno: 44, name: "Robert Lee", title: "Growth Marketing Lead", email: "robert.lee32@workforce.local" },
+  { sno: 45, name: "Sarah Clark", title: "Growth Marketing Lead", email: "sarah.clark33@workforce.local" },
+  { sno: 46, name: "Thomas Wilson", title: "Growth Marketing Lead", email: "thomas.wilson31@workforce.local" },
+  { sno: 47, name: "William Jones", title: "Enterprise Account Executive", email: "william.jones44@workforce.local" },
+];
+
 
 const readRemembered = () => {
   try {
@@ -537,6 +596,7 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showProfilePicker, setShowProfilePicker] = useState(false);
+  const [profileSearch, setProfileSearch] = useState("");
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [animStage, setAnimStage] = useState<"visible" | "exit-left" | "enter-bottom">("visible");
 
@@ -772,40 +832,38 @@ export const LoginPage: React.FC = () => {
               })}
             </div>
 
-            {/* Quick Employee Profile Switcher — toggle button + collapsible list */}
+            {/* Quick Employee Profile Switcher — toggle button + collapsible list with all 47 employees */}
             {role === "employee" && (() => {
-              const EMPLOYEE_PROFILES = [
-                { sno: 1, name: "Sarah Johnson",   title: "Senior Software Engineer",     email: "demo@workforce.local"              },
-                { sno: 2, name: "Jessica Jones",   title: "Frontend Engineer",            email: "jessica.jones6@workforce.local"    },
-                { sno: 3, name: "Paul Martinez",   title: "Senior ML Engineer",           email: "paul.martinez3@workforce.local"    },
-                { sno: 4, name: "Deborah Jackson", title: "Senior Product Manager",       email: "deborah.jackson30@workforce.local" },
-                { sno: 5, name: "Robert Lee",      title: "Growth Marketing Lead",        email: "robert.lee32@workforce.local"      },
-                { sno: 6, name: "Carol Thompson",  title: "Enterprise Account Executive", email: "carol.thompson40@workforce.local"  },
-                { sno: 7, name: "Julian Silva",    title: "Senior Financial Analyst",     email: "julian.silva154@workforce.local"   },
-                { sno: 8, name: "Jaxon Lindberg",  title: "Business Operations Lead",     email: "jaxon.lindberg172@workforce.local" },
-                { sno: 9, name: "Anna Lindberg",   title: "Compliance Specialist",        email: "anna.lindberg190@workforce.local"  },
-              ];
               const initials = (n: string) => n.split(" ").map(p => p[0]).join("").slice(0, 2);
               const active = EMPLOYEE_PROFILES.find(p => p.email === email);
+              const filteredProfiles = EMPLOYEE_PROFILES.filter(p => {
+                if (!profileSearch.trim()) return true;
+                const q = profileSearch.toLowerCase();
+                return p.name.toLowerCase().includes(q) || p.title.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+              });
+
               return (
                 <div className="relative mt-3">
                   {/* Toggle button */}
                   <button
                     type="button"
-                    onClick={() => setShowProfilePicker(v => !v)}
+                    onClick={() => {
+                      setShowProfilePicker(v => !v);
+                      setProfileSearch("");
+                    }}
                     className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:bg-slate-100"
                   >
-                    <span className="flex items-center gap-2">
+                    <span className="flex min-w-0 items-center gap-2">
                       {active ? (
                         <>
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[9px] font-bold text-white">
+                          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[9px] font-bold text-white">
                             {initials(active.name)}
                           </span>
-                          <span className="text-[12px] font-semibold text-slate-800">{active.name}</span>
-                          <span className="text-[11px] text-slate-400">— {active.title}</span>
+                          <span className="truncate text-[12px] font-semibold text-slate-800">{active.name}</span>
+                          <span className="truncate text-[11px] text-slate-400">— {active.title}</span>
                         </>
                       ) : (
-                        <span className="text-[12px] text-slate-500">Switch employee profile…</span>
+                        <span className="text-[12px] text-slate-500">Select employee profile ({EMPLOYEE_PROFILES.length} available)…</span>
                       )}
                     </span>
                     <span
@@ -827,52 +885,75 @@ export const LoginPage: React.FC = () => {
                         className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
                         style={{ top: "100%" }}
                       >
-                        {/* Column header */}
-                        <div className="grid grid-cols-[24px_1fr] gap-x-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
-                          <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">#</span>
-                          <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Name / Job Title</span>
+                        {/* Search input */}
+                        <div className="border-b border-slate-100 bg-slate-50 p-2">
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder={`Search ${EMPLOYEE_PROFILES.length} employees by name or title...`}
+                              value={profileSearch}
+                              onChange={(e) => setProfileSearch(e.target.value)}
+                              className="w-full rounded-md border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-[11px] text-slate-700 placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+                              autoFocus
+                            />
+                          </div>
                         </div>
-                        {/* Rows — 5 visible, scrollable */}
-                        <div className="overflow-y-auto" style={{ maxHeight: "195px" }}>
-                          {EMPLOYEE_PROFILES.map((p) => {
-                            const isActive = email === p.email;
-                            return (
-                              <button
-                                key={p.email}
-                                type="button"
-                                onClick={() => {
-                                  setEmail(p.email);
-                                  setPassword(DEMO_PASSWORD);
-                                  setRole("employee");
-                                  setError(null);
-                                  setInfo(null);
-                                  setShowProfilePicker(false);
-                                }}
-                                className={`grid w-full grid-cols-[24px_1fr] gap-x-2 items-center px-3 py-2.5 text-left transition-colors border-b border-slate-100/80 last:border-b-0 ${
-                                  isActive
-                                    ? "bg-indigo-50 border-l-[3px] border-indigo-500"
-                                    : "border-l-[3px] border-transparent hover:bg-slate-50"
-                                }`}
-                              >
-                                <span className={`text-[11px] font-semibold tabular-nums ${isActive ? "text-indigo-500" : "text-slate-400"}`}>
-                                  {p.sno}
-                                </span>
-                                <span className="flex min-w-0 items-center gap-2">
-                                  <span className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
-                                    isActive ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600"
-                                  }`}>
-                                    {initials(p.name)}
+
+                        {/* Column header */}
+                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                          <span>{filteredProfiles.length} of {EMPLOYEE_PROFILES.length} Profiles</span>
+                          <span>Click to Auto-fill</span>
+                        </div>
+
+                        {/* Rows — scrollable */}
+                        <div className="overflow-y-auto" style={{ maxHeight: "220px" }}>
+                          {filteredProfiles.length === 0 ? (
+                            <div className="py-6 text-center text-[12px] text-slate-400">
+                              No matching employee profiles found.
+                            </div>
+                          ) : (
+                            filteredProfiles.map((p) => {
+                              const isActive = email === p.email;
+                              return (
+                                <button
+                                  key={p.email}
+                                  type="button"
+                                  onClick={() => {
+                                    setEmail(p.email);
+                                    setPassword(DEMO_PASSWORD);
+                                    setRole("employee");
+                                    setError(null);
+                                    setInfo(null);
+                                    setShowProfilePicker(false);
+                                    setProfileSearch("");
+                                  }}
+                                  className={`grid w-full grid-cols-[24px_1fr] gap-x-2 items-center px-3 py-2 text-left transition-colors border-b border-slate-100/80 last:border-b-0 ${
+                                    isActive
+                                      ? "bg-indigo-50 border-l-[3px] border-indigo-500"
+                                      : "border-l-[3px] border-transparent hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <span className={`text-[11px] font-semibold tabular-nums ${isActive ? "text-indigo-500" : "text-slate-400"}`}>
+                                    {p.sno}
                                   </span>
-                                  <span className="min-w-0">
-                                    <span className={`block truncate text-[12px] font-semibold leading-tight ${
-                                      isActive ? "text-indigo-700" : "text-slate-800"
-                                    }`}>{p.name}</span>
-                                    <span className="block truncate text-[10px] leading-tight text-slate-400">{p.title}</span>
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
+                                      isActive ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600"
+                                    }`}>
+                                      {initials(p.name)}
+                                    </span>
+                                    <span className="min-w-0">
+                                      <span className={`block truncate text-[12px] font-semibold leading-tight ${
+                                        isActive ? "text-indigo-700" : "text-slate-800"
+                                      }`}>{p.name}</span>
+                                      <span className="block truncate text-[10px] leading-tight text-slate-400">{p.title}</span>
+                                    </span>
                                   </span>
-                                </span>
-                              </button>
-                            );
-                          })}
+                                </button>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
                     </>
@@ -880,8 +961,6 @@ export const LoginPage: React.FC = () => {
                 </div>
               );
             })()}
-
-
 
             {error && (
               <div

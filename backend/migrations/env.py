@@ -8,6 +8,7 @@ from sqlalchemy import engine_from_config, pool
 # Add backend directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+# pyrefly: ignore[missing-import]
 from app.config.settings import settings
 from app.database.base import Base
 from app.models import *

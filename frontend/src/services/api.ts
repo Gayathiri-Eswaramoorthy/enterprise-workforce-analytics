@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
 export const ACCESS_TOKEN_KEY = "workforce_access_token";
 export const REFRESH_TOKEN_KEY = "workforce_refresh_token";
