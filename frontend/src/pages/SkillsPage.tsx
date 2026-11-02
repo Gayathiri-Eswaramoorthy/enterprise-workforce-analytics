@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import api, { getErrorMessage } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import type { EmployeeSkill, Skill } from "../types";
@@ -10,6 +11,17 @@ import { downloadCsv, openFormattedPdfReport } from "../utils/exportReports";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const PAGE_SIZE = 9;
+interface SkillGapEmployee {
+  employee_id: string;
+  employee_name: string;
+  employee_code: string;
+  department_name: string;
+  job_role_title: string;
+  current_proficiency: number;
+  required_proficiency: number;
+  gap: number;
+  mandatory: boolean;
+}
 
 type SortKey = "name" | "gap" | "category";
 type Availability = "all" | "active" | "inactive";
@@ -69,6 +81,11 @@ export const SkillsPage: React.FC = () => {
   const [categories, setCategories] = useState<Set<string>>(new Set());
   const [availability, setAvailability] = useState<Availability>("all");
   const [gapsOnly, setGapsOnly] = useState(false);
+  const [noGapsOnly, setNoGapsOnly] = useState(false);
+  const [gapEmployees, setGapEmployees] = useState<SkillGapEmployee[]>([]);
+  const [gapEmployeesError, setGapEmployeesError] = useState<string | null>(null);
+  const [selectedGapSkill, setSelectedGapSkill] = useState<{ id: string; name: string } | null>(null);
+  const [loadingGapEmployees, setLoadingGapEmployees] = useState(false);
   const [sort, setSort] = useState<SortKey>("name");
   const [page, setPage] = useState(1);
 
@@ -199,7 +216,8 @@ export const SkillsPage: React.FC = () => {
             s.skill_category.toLowerCase().includes(q)) &&
           (categories.size === 0 || categories.has(s.skill_category)) &&
           (availability === "all" || (availability === "active") === (s.is_active !== false)) &&
-          (!gapsOnly || (gapBySkill[s.id]?.affected ?? 0) > 0),
+          (!gapsOnly || (gapBySkill[s.id]?.affected ?? 0) > 0) &&
+          (!noGapsOnly || (gapBySkill[s.id]?.affected ?? 0) === 0),
       )
       .sort((a, b) => {
         if (sort === "gap") return (gapBySkill[b.id]?.affected ?? 0) - (gapBySkill[a.id]?.affected ?? 0);
@@ -207,20 +225,41 @@ export const SkillsPage: React.FC = () => {
           return a.skill_category.localeCompare(b.skill_category) || a.name.localeCompare(b.name);
         return a.name.localeCompare(b.name);
       });
-  }, [skills, query, categories, availability, gapsOnly, sort, gapBySkill]);
+  }, [skills, query, categories, availability, gapsOnly, noGapsOnly, sort, gapBySkill]);
 
   const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageItems = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const maxAffected = Math.max(1, ...Object.values(gapBySkill).map((g) => g.affected));
-  const filtersActive = query || categories.size > 0 || availability !== "all" || gapsOnly;
+  const filtersActive = query || categories.size > 0 || availability !== "all" || gapsOnly || noGapsOnly;
 
   const clearAll = () => {
     setQuery("");
     setCategories(new Set());
     setAvailability("all");
     setGapsOnly(false);
+    setNoGapsOnly(false);
     setPage(1);
+  };
+
+  const focusCatalog = () => {
+    window.setTimeout(() => document.getElementById("skills-catalog")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+
+  const showGapEmployees = async (skillId: string, skillName: string) => {
+    setSelectedGapSkill({ id: skillId, name: skillName });
+    setGapEmployees([]);
+    setGapEmployeesError(null);
+    setLoadingGapEmployees(true);
+    try {
+      const response = await api.get(`/analytics/skill-gaps/skill/${skillId}/employees`);
+      setGapEmployees(response.data);
+    } catch (err) {
+      console.error("Could not load employees with this skill gap", err);
+      setGapEmployeesError(getErrorMessage(err, "Could not load employees for this skill."));
+    } finally {
+      setLoadingGapEmployees(false);
+    }
   };
 
   const openEditor = (skill: Skill | "new") => {
@@ -352,12 +391,12 @@ export const SkillsPage: React.FC = () => {
             </span>
             <div>
               <p className="text-[13px] font-semibold text-ink">{skills.length} Skills</p>
-              <p className="text-[11px] text-ink-3">Catalog breakdown</p>
+              <p className="text-[11px] text-ink-3">Catalog breakdown · click a bar to filter</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={80}>
             <BarChart
-              data={[...categoryCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([cat, count]) => ({ cat: cat.length > 10 ? cat.slice(0, 10) + "…" : cat, count }))}
+              data={[...categoryCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([category, count]) => ({ category, cat: category.length > 10 ? category.slice(0, 10) + "…" : category, count }))}
               margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
               barSize={14}
             >
@@ -367,7 +406,10 @@ export const SkillsPage: React.FC = () => {
                 contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--rule)" }}
                 formatter={(v: any) => [v, "Skills"]}
               />
-              <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+              <Bar dataKey="count" radius={[3, 3, 0, 0]} cursor="pointer" onClick={(entry: any) => {
+                const category = entry?.payload?.category;
+                if (category) { setQuery(""); setAvailability("all"); setCategories(new Set([category])); setGapsOnly(false); setNoGapsOnly(false); setPage(1); focusCatalog(); }
+              }}>
                 {[...categoryCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([cat], idx) => (
                   <Cell key={cat} fill={CATEGORY_HUES[idx % CATEGORY_HUES.length]} />
                 ))}
@@ -385,7 +427,7 @@ export const SkillsPage: React.FC = () => {
               </span>
               <div>
                 <p className="text-[13px] font-semibold text-ink">{withGaps} / {skills.length}</p>
-                <p className="text-[11px] text-ink-3">Skills with gaps</p>
+              <p className="text-[11px] text-ink-3">Skills with gaps · click a bar to filter</p>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={80}>
@@ -403,7 +445,10 @@ export const SkillsPage: React.FC = () => {
                   contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--rule)" }}
                   formatter={(v: any) => [v, "Skills"]}
                 />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="count" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(entry: any) => {
+                  const hasGaps = entry?.payload?.label === "With Gaps";
+                  if (entry?.payload?.label) { setQuery(""); setAvailability("all"); setCategories(new Set()); setGapsOnly(hasGaps); setNoGapsOnly(!hasGaps); setPage(1); focusCatalog(); }
+                }}>
                   <Cell fill="#f59e0b" />
                   <Cell fill="#10b981" />
                 </Bar>
@@ -445,12 +490,12 @@ export const SkillsPage: React.FC = () => {
               </span>
               <div>
                 <p className="text-[13px] font-semibold text-ink">{mandatoryGaps} Mandatory</p>
-                <p className="text-[11px] text-ink-3">Gap severity by skill</p>
+                <p className="text-[11px] text-ink-3">Gap severity by skill · click a bar for employees</p>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={80}>
               <BarChart
-                data={topGaps.slice(0, 5).map(g => ({ name: g.skill_name.length > 10 ? g.skill_name.slice(0, 10) + "…" : g.skill_name, count: g.affected_employees_count }))}
+                data={topGaps.slice(0, 5).map(g => ({ skill_id: g.skill_id, skill_name: g.skill_name, name: g.skill_name.length > 10 ? g.skill_name.slice(0, 10) + "…" : g.skill_name, count: g.affected_employees_count }))}
                 margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
                 barSize={14}
               >
@@ -460,7 +505,10 @@ export const SkillsPage: React.FC = () => {
                   contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--rule)" }}
                   formatter={(v: any) => [v, "Employees affected"]}
                 />
-                <Bar dataKey="count" fill="#dc2626" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="count" fill="#dc2626" radius={[3, 3, 0, 0]} cursor="pointer" onClick={(entry: any) => {
+                  const item = entry?.payload;
+                  if (item?.skill_id) void showGapEmployees(item.skill_id, item.skill_name);
+                }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -567,6 +615,7 @@ export const SkillsPage: React.FC = () => {
                   checked={gapsOnly}
                   onChange={(e) => {
                     setGapsOnly(e.target.checked);
+                    setNoGapsOnly(false);
                     setPage(1);
                   }}
                   className="h-4 w-4 rounded border-rule-strong accent-[var(--accent)]"
@@ -607,7 +656,7 @@ export const SkillsPage: React.FC = () => {
         </div>
 
         {/* Catalog */}
-        <section className="card-raised flex flex-col p-5" aria-label="Skills catalog">
+        <section id="skills-catalog" className="card-raised flex flex-col p-5 scroll-mt-6" aria-label="Skills catalog">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-[15px] font-semibold text-ink">
               Catalog <span className="ml-1 font-normal tabular-nums text-ink-3">{visible.length}</span>
@@ -736,6 +785,49 @@ export const SkillsPage: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {selectedGapSkill && (
+        <Modal
+          wide
+          title={`Employees with a ${selectedGapSkill.name} gap`}
+          subtitle="Active employees whose current proficiency is below their role requirement."
+          onClose={() => setSelectedGapSkill(null)}
+        >
+          {loadingGapEmployees ? (
+            <div className="space-y-2" aria-busy="true">
+              {[0, 1, 2, 3].map((item) => <div key={item} className="skeleton h-12" />)}
+            </div>
+          ) : gapEmployeesError ? (
+            <p role="alert" className="py-6 text-center text-sm text-risk-critical">{gapEmployeesError}</p>
+          ) : gapEmployees.length === 0 ? (
+            <p className="py-6 text-center text-sm text-ink-3">No active employees currently have a gap for this skill.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-[13px]">
+                <thead className="border-b border-rule text-[11px] uppercase tracking-wide text-ink-3">
+                  <tr><th className="py-2 pr-3">Employee</th><th className="py-2 pr-3">Department</th><th className="py-2 pr-3">Role</th><th className="py-2 pr-3">Current / required</th><th className="py-2">Gap</th></tr>
+                </thead>
+                <tbody className="divide-y divide-rule-soft">
+                  {gapEmployees.map((employee) => (
+                    <tr key={employee.employee_id}>
+                      <td className="py-3 pr-3">
+                        <Link to={`/employees/${employee.employee_id}`} onClick={() => setSelectedGapSkill(null)} className="font-medium text-link hover:underline">
+                          {employee.employee_name}
+                        </Link>
+                        <span className="ml-2 text-xs text-ink-3">{employee.employee_code}</span>
+                      </td>
+                      <td className="py-3 pr-3 text-ink-2">{employee.department_name}</td>
+                      <td className="py-3 pr-3 text-ink-2">{employee.job_role_title}</td>
+                      <td className="py-3 pr-3 tabular-nums text-ink-2">{employee.current_proficiency} / {employee.required_proficiency}</td>
+                      <td className="py-3 tabular-nums text-risk-high">-{employee.gap}{employee.mandatory ? " · Mandatory" : ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Modal>
+      )}
 
       {editing && (
         <Modal

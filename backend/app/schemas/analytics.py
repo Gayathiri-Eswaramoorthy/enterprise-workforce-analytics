@@ -3,9 +3,10 @@ Skill gap and analytics schemas for intelligent evaluation.
 """
 
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SkillGapItem(BaseModel):
@@ -54,6 +55,36 @@ class TopSkillGapItem(BaseModel):
     affected_employees_count: int
     avg_proficiency_gap: float
     mandatory_gaps_count: int
+
+
+class EmployeeSkillGapMember(BaseModel):
+    employee_id: UUID
+    employee_name: str
+    employee_code: str
+    department_name: str
+    job_role_title: str
+    current_proficiency: int
+    required_proficiency: int
+    gap: int
+    mandatory: bool
+
+
+class AttritionGuidanceSubject(BaseModel):
+    case_ref: str = Field(min_length=1, max_length=32)
+    department: str = Field(default="Unknown", max_length=100)
+    role: str = Field(default="Unknown", max_length=150)
+    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    probability: float = Field(ge=0, le=100)
+    drivers: list[str] = Field(default_factory=list, max_length=8)
+
+
+class AttritionGuidanceRequest(BaseModel):
+    employees: list[AttritionGuidanceSubject] = Field(min_length=1, max_length=8)
+
+
+class AttritionGuidanceResponse(BaseModel):
+    guidance: str
+    model: str
 
 
 class DashboardMetrics(BaseModel):

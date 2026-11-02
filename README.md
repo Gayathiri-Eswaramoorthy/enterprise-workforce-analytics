@@ -53,6 +53,12 @@ Data persists in a named Docker volume (`pgdata`) across restarts; the seed step
    ```bash
    python3 -c "import secrets; print(secrets.token_urlsafe(48))"
    ```
+3. For AI-assisted attrition follow-up drafts, add a Groq API key to the local, git-ignored `.env` file:
+   ```bash
+   GROQ_API_KEY=your_rotated_groq_key
+   GROQ_MODEL=openai/gpt-oss-20b
+   ```
+   The key is used by the backend only. The AI card remains unavailable until a key is configured.
    The app refuses to start with the placeholder `SECRET_KEY` when `ENVIRONMENT=production`.
 
 ### Backend & Database Setup

@@ -2,12 +2,18 @@
 Skill gap intelligence and workforce analytics endpoints router.
 """
 
+import json
+import logging
 from uuid import UUID
 
+from app.config.settings import settings
 from app.database import UserRole, get_db
 from app.models import User
 from app.schemas.analytics import (
     DepartmentSkillGapSummary,
+    AttritionGuidanceRequest,
+    AttritionGuidanceResponse,
+    EmployeeSkillGapMember,
     EmployeeSkillGapReport,
     TopSkillGapItem,
 )
@@ -24,9 +30,11 @@ from app.security import (
 from app.services.assessment_service import AssessmentService
 from app.services.audit_service import AuditService
 from app.services.skill_gap_service import SkillGapService
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+import httpx
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 skill_gap_service = SkillGapService()
 assessment_service = AssessmentService()
@@ -65,6 +73,87 @@ def get_top_skill_gaps(
     current_user: User = Depends(require_hr),
 ) -> list[TopSkillGapItem]:
     return skill_gap_service.get_organization_top_skill_gaps(db=db, limit=limit)
+
+
+@router.get(
+    "/skill-gaps/skill/{skill_id}/employees",
+    response_model=list[EmployeeSkillGapMember],
+    summary="List active employees with a gap in a skill",
+    description="Return active employees whose proficiency is below the requirement for their assigned role.",
+)
+def get_employees_with_skill_gap(
+    skill_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr),
+) -> list[EmployeeSkillGapMember]:
+    return skill_gap_service.get_employees_with_skill_gap(db=db, skill_id=skill_id)
+
+
+@router.post(
+    "/attrition-guidance",
+    response_model=AttritionGuidanceResponse,
+    summary="Generate HR attrition follow-up suggestions",
+    description="Generate supportive, human-reviewed suggestions from selected workforce risk signals. HR only.",
+)
+def generate_attrition_guidance(
+    body: AttritionGuidanceRequest,
+    current_user: User = Depends(require_hr),
+) -> AttritionGuidanceResponse:
+    if not settings.GROQ_API_KEY.strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI suggestions are not configured. Add GROQ_API_KEY to your local .env file and restart the backend.",
+        )
+
+    prompt_data = [employee.model_dump() for employee in body.employees]
+    payload = {
+        "model": settings.GROQ_MODEL,
+        "temperature": 0.3,
+        "max_tokens": 700,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are an HR decision-support assistant. Use only the supplied aggregate/employee risk signals. "
+                    "Treat risk scores as uncertain model estimates, never as facts about intent or performance. "
+                    "Do not infer causes, protected traits, or private circumstances. Give practical, supportive, "
+                    "non-punitive follow-up ideas for a human HR partner to validate in a confidential conversation. "
+                    "Never recommend discipline, termination, surveillance, or employment decisions. Clearly distinguish "
+                    "observed drivers from hypotheses. Return concise markdown with: a short heading, 2-4 specific "
+                    "suggestions, and one sentence reminding HR to confirm context with the employee."
+                ),
+            },
+            {
+                "role": "user",
+                "content": "Create tailored HR follow-up suggestions from these risk records:\n"
+                + json.dumps(prompt_data, ensure_ascii=False),
+            },
+        ],
+    }
+    try:
+        response = httpx.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        guidance = response.json()["choices"][0]["message"]["content"].strip()
+        if not guidance:
+            raise ValueError("The model returned an empty response")
+    except httpx.HTTPStatusError as exc:
+        logger.exception("Groq returned an error while generating attrition guidance")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The AI provider could not generate suggestions. Check the Groq key and try again.",
+        ) from exc
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+        logger.exception("Could not generate attrition guidance")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not generate AI suggestions right now. Please try again.",
+        ) from exc
+    return AttritionGuidanceResponse(guidance=guidance, model=settings.GROQ_MODEL)
 
 
 @router.get(

@@ -29,6 +29,8 @@ class Settings(BaseSettings):
 
     # Database Configuration (DATABASE_URL as primary)
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/workforce_analytics"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
 
     # Security / JWT Configuration
     SECRET_KEY: str = "placeholder_key_please_change_in_env_file_for_security"

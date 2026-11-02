@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api, { getErrorMessage } from "../services/api";
+import { AttritionGuidanceCard } from "../components/AttritionGuidanceCard";
 import type {
   EmployeeListItem,
   ModelRegistryEntry,
@@ -391,6 +392,21 @@ export const PredictionsPage: React.FC = () => {
             </>
           ))}
       </section>
+
+      <AttritionGuidanceCard
+        employees={latestPerEmployee
+          .filter((item) => item.risk_level === "HIGH" || item.risk_level === "CRITICAL")
+          .sort((a, b) => Number(b.prediction_score) - Number(a.prediction_score))
+          .slice(0, 8)
+          .map((item, index) => ({
+            case_ref: `Case ${index + 1}`,
+            department: departmentOf.get(item.employee_id) ?? "Unknown",
+            role: employees.find((employee) => employee.id === item.employee_id)?.job_role_title ?? "Unknown",
+            risk_level: item.risk_level,
+            probability: Number(item.prediction_score),
+            drivers: driversOf(item),
+          }))}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Risk distribution */}

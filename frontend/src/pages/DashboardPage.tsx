@@ -26,6 +26,7 @@ import type {
 import { RiskStrip } from "../components/RiskStrip";
 import { RiskMeter } from "../components/RiskMeter";
 import { AnimatedCounter } from "../components/AnimatedCounter";
+import { AttritionGuidanceCard } from "../components/AttritionGuidanceCard";
 import { AT_RISK_LEVELS, RISK_LABEL, RISK_LEVELS, countByLevel, isRiskLevel } from "../lib/risk";
 
 interface OverviewData {
@@ -183,23 +184,35 @@ const getCompactPagination = (
 };
 
 const fetchOverview = async (): Promise<OverviewData> => {
-  const [summaryRes, employeesRes, historyRes, recsRes, modelsRes] = await Promise.all([
+  const [summaryRes, employeesRes] = await Promise.all([
     api.get("/dashboard/summary"),
-    api.get("/employees", { params: { page_size: 250 } }),
-    api.get("/predictions/history", { params: { page_size: 100 } }),
-    api.get("/recommendations", {
-      params: { status: "PENDING", page_size: 100 },
-    }),
-    api.get("/predictions/models"),
+    api.get("/employees", { params: { page_size: 100 } }),
   ]);
-  const models: ModelRegistryEntry[] = modelsRes.data;
-  return {
+  const overview: OverviewData = {
     metrics: summaryRes.data,
     employees: employeesRes.data.items,
-    history: historyRes.data.items,
-    pending: recsRes.data.items,
-    model: models.find((m) => m.is_active) ?? null,
+    history: [],
+    pending: [],
+    model: null,
   };
+
+  return overview;
+};
+
+const fetchOverviewDetails = async () => {
+  const [historyRes, recsRes, modelsRes] = await Promise.allSettled([
+    api.get("/predictions/history", { params: { page_size: 100 } }),
+    api.get("/recommendations", { params: { status: "PENDING", page_size: 100 } }),
+    api.get("/predictions/models"),
+  ]);
+  const details: Partial<Pick<OverviewData, "history" | "pending" | "model">> = {};
+  if (historyRes.status === "fulfilled") details.history = historyRes.value.data.items;
+  if (recsRes.status === "fulfilled") details.pending = recsRes.value.data.items;
+  if (modelsRes.status === "fulfilled") {
+    const models: ModelRegistryEntry[] = modelsRes.value.data;
+    details.model = models.find((m) => m.is_active) ?? null;
+  }
+  return details;
 };
 
 export const DashboardPage: React.FC = () => {
@@ -223,8 +236,11 @@ export const DashboardPage: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      setData(await fetchOverview());
+      const overview = await fetchOverview();
+      setData(overview);
       setError(null);
+      const details = await fetchOverviewDetails();
+      setData((current) => (current ? { ...current, ...details } : current));
     } catch (err) {
       setError(getErrorMessage(err, "Could not load the overview."));
     }
@@ -539,6 +555,21 @@ export const DashboardPage: React.FC = () => {
           </ul>
         </section>
       </div>
+
+      <AttritionGuidanceCard
+        employees={people
+          .filter((person) => AT_RISK_LEVELS.includes(person.level))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 8)
+          .map((person, index) => ({
+            case_ref: `Case ${index + 1}`,
+            department: person.department,
+            role: person.role,
+            risk_level: person.level,
+            probability: person.score,
+            drivers: person.drivers,
+          }))}
+      />
 
       {/* The people table */}
       <section className="card overflow-hidden" aria-labelledby="people-title">

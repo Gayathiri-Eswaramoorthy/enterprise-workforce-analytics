@@ -5,18 +5,20 @@ SkillGapService: Core intelligent engine analyzing employee proficiencies vs job
 from collections import defaultdict
 from uuid import UUID
 
-from app.models import Employee, JobRole, RoleSkill
+from app.database import EmploymentStatus
+from app.models import Department, Employee, EmployeeSkill, JobRole, RoleSkill, Skill
 from app.repositories.department_repository import DepartmentRepository
 from app.repositories.employee_repository import EmployeeRepository
 from app.repositories.job_role_repository import JobRoleRepository
 from app.schemas.analytics import (
     DepartmentSkillGapSummary,
+    EmployeeSkillGapMember,
     EmployeeSkillGapReport,
     SkillGapItem,
     TopSkillGapItem,
 )
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
 
@@ -141,65 +143,97 @@ class SkillGapService:
         """
         Aggregate top skill gaps across all active employees in the organization.
         """
-        # Fetch all active employees with roles and skills
+        proficiency = func.coalesce(EmployeeSkill.proficiency_level, 0)
+        gap = func.greatest(RoleSkill.required_proficiency - proficiency, 0)
+        gap_count = func.count(case((gap > 0, 1)))
         stmt = (
-            select(Employee)
-            .where(Employee.is_deleted == False)
-            .options(
-                selectinload(Employee.job_role)
-                .selectinload(JobRole.role_skills)
-                .selectinload(RoleSkill.skill),
-                selectinload(Employee.employee_skills),
+            select(
+                Skill.id,
+                Skill.skill_code,
+                Skill.name,
+                Skill.skill_category,
+                gap_count.label("affected_count"),
+                func.avg(case((gap > 0, gap), else_=None)).label("average_gap"),
+                func.count(case((RoleSkill.mandatory & (gap >= 2), 1))).label("critical_count"),
             )
-        )
-        employees = db.execute(stmt).scalars().all()
-
-        skill_gap_stats = defaultdict(lambda: {"gaps": [], "critical": 0, "skill": None})
-
-        for emp in employees:
-            if not emp.job_role:
-                continue
-            emp_skills_map = {es.skill_id: es.proficiency_level for es in emp.employee_skills}
-            for rs in emp.job_role.role_skills:
-                skill = rs.skill
-                if not skill:
-                    continue
-                current = emp_skills_map.get(rs.skill_id, 0)
-                gap = max(0, rs.required_proficiency - current)
-                if gap > 0:
-                    stats = skill_gap_stats[skill.id]
-                    stats["skill"] = skill
-                    stats["gaps"].append(gap)
-                    if rs.mandatory and gap >= 2:
-                        stats["critical"] += 1
-
-        results = []
-        for sid, data in skill_gap_stats.items():
-            skill = data["skill"]
-            gaps = data["gaps"]
-            if not gaps:
-                continue
-            results.append(
-                TopSkillGapItem(
-                    skill_id=sid,
-                    skill_code=skill.skill_code,
-                    skill_name=skill.name,
-                    skill_category=skill.skill_category,
-                    affected_employees_count=len(gaps),
-                    avg_proficiency_gap=round(sum(gaps) / len(gaps), 2),
-                    mandatory_gaps_count=data["critical"],
-                )
+            .select_from(Employee)
+            .join(RoleSkill, RoleSkill.job_role_id == Employee.job_role_id)
+            .join(Skill, Skill.id == RoleSkill.skill_id)
+            .outerjoin(
+                EmployeeSkill,
+                (EmployeeSkill.employee_id == Employee.id)
+                & (EmployeeSkill.skill_id == RoleSkill.skill_id),
             )
-
-        results.sort(
-            key=lambda x: (
-                x.mandatory_gaps_count,
-                x.affected_employees_count,
-                x.avg_proficiency_gap,
-            ),
-            reverse=True,
+            .where(Employee.is_deleted == False)  # noqa: E712
+            .group_by(Skill.id, Skill.skill_code, Skill.name, Skill.skill_category)
+            .having(gap_count > 0)
+            .order_by(
+                func.count(case((RoleSkill.mandatory & (gap >= 2), 1))).desc(),
+                gap_count.desc(),
+                func.avg(case((gap > 0, gap), else_=None)).desc(),
+            )
+            .limit(limit)
         )
-        return results[:limit]
+        rows = db.execute(stmt).all()
+        return [
+            TopSkillGapItem(
+                skill_id=row.id,
+                skill_code=row.skill_code,
+                skill_name=row.name,
+                skill_category=row.skill_category,
+                affected_employees_count=row.affected_count,
+                avg_proficiency_gap=round(float(row.average_gap or 0), 2),
+                mandatory_gaps_count=row.critical_count,
+            )
+            for row in rows
+        ]
+
+    def get_employees_with_skill_gap(self, db: Session, skill_id: UUID) -> list[EmployeeSkillGapMember]:
+        proficiency = func.coalesce(EmployeeSkill.proficiency_level, 0)
+        gap = func.greatest(RoleSkill.required_proficiency - proficiency, 0)
+        rows = db.execute(
+            select(
+                Employee.id,
+                Employee.first_name,
+                Employee.last_name,
+                Employee.employee_code,
+                Department.name.label("department_name"),
+                JobRole.title.label("job_role_title"),
+                proficiency.label("current_proficiency"),
+                RoleSkill.required_proficiency,
+                gap.label("gap"),
+                RoleSkill.mandatory,
+            )
+            .join(RoleSkill, RoleSkill.job_role_id == Employee.job_role_id)
+            .join(Department, Department.id == Employee.department_id)
+            .join(JobRole, JobRole.id == Employee.job_role_id)
+            .outerjoin(
+                EmployeeSkill,
+                (EmployeeSkill.employee_id == Employee.id)
+                & (EmployeeSkill.skill_id == RoleSkill.skill_id),
+            )
+            .where(
+                Employee.is_deleted == False,  # noqa: E712
+                Employee.employment_status == EmploymentStatus.ACTIVE,
+                RoleSkill.skill_id == skill_id,
+                gap > 0,
+            )
+            .order_by(gap.desc(), Employee.last_name, Employee.first_name)
+        ).all()
+        return [
+            EmployeeSkillGapMember(
+                employee_id=row.id,
+                employee_name=f"{row.first_name} {row.last_name}",
+                employee_code=row.employee_code,
+                department_name=row.department_name,
+                job_role_title=row.job_role_title,
+                current_proficiency=row.current_proficiency,
+                required_proficiency=row.required_proficiency,
+                gap=row.gap,
+                mandatory=row.mandatory,
+            )
+            for row in rows
+        ]
 
     def get_department_skill_gap_summary(
         self, db: Session, department_id: UUID
