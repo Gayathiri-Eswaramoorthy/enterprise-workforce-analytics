@@ -827,9 +827,12 @@ export const PredictionsPage: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-ink-3">
-                    <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
-                    <p className="mt-2 text-xs">Loading predictions...</p>
+                  <td colSpan={8} className="py-4">
+                    <div className="space-y-2 px-4">
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className="skeleton h-10 w-full rounded-lg" />
+                      ))}
+                    </div>
                   </td>
                 </tr>
               ) : pageRows.length === 0 ? (

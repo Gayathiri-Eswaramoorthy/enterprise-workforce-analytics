@@ -410,10 +410,108 @@ export const DepartmentsPage: React.FC = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Department cards */}
+      {/* ── Row 1: Stats panels side-by-side (HR only) ───────────────────── */}
+      {isHr && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <section className="card-raised p-5">
+            <h2 className="text-[15px] font-semibold text-ink">Headcount by department</h2>
+            <p className="mb-4 text-[13px] text-ink-2">Share of the largest team.</p>
+            <ul className="space-y-3">
+              {[...departments]
+                .sort((a, b) => (stats.get(b.id)?.people ?? 0) - (stats.get(a.id)?.people ?? 0))
+                .map((d) => {
+                  const n = stats.get(d.id)?.people ?? 0;
+                  return (
+                    <li key={d.id}>
+                      <div className="mb-1 flex justify-between text-[13px]">
+                        <span className="truncate text-ink">{d.name}</span>
+                        <span className="tabular-nums text-ink-2">{n}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-sunken">
+                        <div
+                          className="grow h-full rounded-full"
+                          style={{
+                            width: `${(n / maxPeople) * 100}%`,
+                            background: "linear-gradient(90deg, var(--accent), #5b8ef0)",
+                          }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+          </section>
+
+          <section className="card-raised p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <TriangleAlert className="h-4 w-4 text-risk-high" aria-hidden="true" />
+              <h2 className="text-[15px] font-semibold text-ink">Risk hotspots</h2>
+            </div>
+            {hotspots.length === 0 ? (
+              <p className="py-6 text-center text-[13px] text-ink-3">No department has high-risk employees.</p>
+            ) : (
+              <ol className="space-y-3">
+                {hotspots.map((d, i) => {
+                  const s = stats.get(d.id)!;
+                  return (
+                    <li key={d.id}>
+                      <Link
+                        to={`/employees?department=${encodeURIComponent(d.name)}`}
+                        className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-hover"
+                      >
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sunken text-xs font-semibold tabular-nums text-ink-2">
+                          {i + 1}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-medium text-ink">{d.name}</span>
+                          <span className="block text-xs text-ink-3">
+                            {s.atRisk} of {s.people} at risk
+                          </span>
+                        </span>
+                        <span className="text-sm font-semibold tabular-nums text-risk-high">
+                          {Math.round(share(d) * 100)}%
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </section>
+
+          <section className="card-raised p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-risk-critical" aria-hidden="true" />
+              <h2 className="text-[15px] font-semibold text-ink">Critical skill gaps</h2>
+            </div>
+            <ul className="space-y-3">
+              {[...departments]
+                .sort((a, b) => (stats.get(b.id)?.criticalGaps ?? 0) - (stats.get(a.id)?.criticalGaps ?? 0))
+                .map((d) => {
+                  const n = stats.get(d.id)?.criticalGaps ?? 0;
+                  return (
+                    <li key={d.id}>
+                      <div className="mb-1 flex justify-between text-[13px]">
+                        <span className="truncate text-ink">{d.name}</span>
+                        <span className="tabular-nums text-ink-2">{n}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-sunken">
+                        <div
+                          className="grow h-full rounded-full"
+                          style={{ width: `${(n / maxGaps) * 100}%`, background: "var(--risk-critical)" }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+          </section>
+        </div>
+      )}
+
+      {/* ── Row 2: Department cards (full-width) ─────────────────────────── */}
         <div
-          className={`grid grid-cols-1 content-start gap-5 md:grid-cols-2 ${isHr ? "lg:col-span-8" : "lg:col-span-12 xl:grid-cols-3"}`}
+          className="grid grid-cols-1 content-start gap-5 md:grid-cols-2 xl:grid-cols-3"
         >
           {visible.length === 0 && (
             <div className="card-raised col-span-full py-16 text-center text-sm text-ink-3">
@@ -531,105 +629,6 @@ export const DepartmentsPage: React.FC = () => {
             );
           })}
         </div>
-
-        {isHr && (
-          <div className="flex flex-col gap-6 lg:sticky lg:top-4 lg:col-span-4 lg:self-start">
-            <section className="card-raised p-5">
-              <h2 className="text-[15px] font-semibold text-ink">Headcount by department</h2>
-              <p className="mb-4 text-[13px] text-ink-2">Share of the largest team.</p>
-              <ul className="space-y-3">
-                {[...departments]
-                  .sort((a, b) => (stats.get(b.id)?.people ?? 0) - (stats.get(a.id)?.people ?? 0))
-                  .map((d) => {
-                    const n = stats.get(d.id)?.people ?? 0;
-                    return (
-                      <li key={d.id}>
-                        <div className="mb-1 flex justify-between text-[13px]">
-                          <span className="truncate text-ink">{d.name}</span>
-                          <span className="tabular-nums text-ink-2">{n}</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-sunken">
-                          <div
-                            className="grow h-full rounded-full"
-                            style={{
-                              width: `${(n / maxPeople) * 100}%`,
-                              background: "linear-gradient(90deg, var(--accent), #5b8ef0)",
-                            }}
-                          />
-                        </div>
-                      </li>
-                    );
-                  })}
-              </ul>
-            </section>
-
-            <section className="card-raised p-5">
-              <div className="mb-4 flex items-center gap-2">
-                <TriangleAlert className="h-4 w-4 text-risk-high" aria-hidden="true" />
-                <h2 className="text-[15px] font-semibold text-ink">Risk hotspots</h2>
-              </div>
-              {hotspots.length === 0 ? (
-                <p className="py-6 text-center text-[13px] text-ink-3">No department has high-risk employees.</p>
-              ) : (
-                <ol className="space-y-3">
-                  {hotspots.map((d, i) => {
-                    const s = stats.get(d.id)!;
-                    return (
-                      <li key={d.id}>
-                        <Link
-                          to={`/employees?department=${encodeURIComponent(d.name)}`}
-                          className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-hover"
-                        >
-                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sunken text-xs font-semibold tabular-nums text-ink-2">
-                            {i + 1}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-medium text-ink">{d.name}</span>
-                            <span className="block text-xs text-ink-3">
-                              {s.atRisk} of {s.people} at risk
-                            </span>
-                          </span>
-                          <span className="text-sm font-semibold tabular-nums text-risk-high">
-                            {Math.round(share(d) * 100)}%
-                          </span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </section>
-
-            <section className="card-raised p-5">
-              <div className="mb-4 flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-risk-critical" aria-hidden="true" />
-                <h2 className="text-[15px] font-semibold text-ink">Critical skill gaps</h2>
-              </div>
-              <ul className="space-y-3">
-                {[...departments]
-                  .sort((a, b) => (stats.get(b.id)?.criticalGaps ?? 0) - (stats.get(a.id)?.criticalGaps ?? 0))
-                  .map((d) => {
-                    const n = stats.get(d.id)?.criticalGaps ?? 0;
-                    return (
-                      <li key={d.id}>
-                        <div className="mb-1 flex justify-between text-[13px]">
-                          <span className="truncate text-ink">{d.name}</span>
-                          <span className="tabular-nums text-ink-2">{n}</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-sunken">
-                          <div
-                            className="grow h-full rounded-full"
-                            style={{ width: `${(n / maxGaps) * 100}%`, background: "var(--risk-critical)" }}
-                          />
-                        </div>
-                      </li>
-                    );
-                  })}
-              </ul>
-            </section>
-          </div>
-        )}
-      </div>
       </>
       )}
 
