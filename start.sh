@@ -36,19 +36,23 @@ fi
 # 1. Start Backend API
 echo "Starting Backend (FastAPI on :8000)..."
 cd "$ROOT_DIR/backend"
-if [ -f ".venv/bin/uvicorn" ]; then
-  .venv/bin/uvicorn app.main:app --reload --port 8000 &
-elif command -v uvicorn >/dev/null 2>&1; then
-  uvicorn app.main:app --reload --port 8000 &
-else
-  python3 -m uvicorn app.main:app --reload --port 8000 &
+if [ ! -x ".venv/bin/python" ]; then
+  echo "Creating backend virtual environment..."
+  python3 -m venv .venv
 fi
 
-# Wait up to 10 seconds for backend to finish booting and bind port 8000
+if ! .venv/bin/python -c "import fastapi, sqlalchemy" >/dev/null 2>&1; then
+  echo "Installing backend dependencies from backend/requirements.txt..."
+  .venv/bin/python -m pip install -r requirements.txt
+fi
+
+.venv/bin/python -m uvicorn app.main:app --reload --port 8000 &
+
+# Wait up to 10 seconds for this backend's health endpoint to respond
 echo "Waiting for Backend to be ready on port 8000..."
 READY=0
 for i in {1..20}; do
-  if curl -s http://127.0.0.1:8000/docs >/dev/null 2>&1; then
+  if curl --max-time 1 -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then
     READY=1
     echo "✅ Backend is ready!"
     break

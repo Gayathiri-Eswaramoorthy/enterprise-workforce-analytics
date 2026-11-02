@@ -25,6 +25,7 @@ import { RISK_COLOR, RISK_LABEL, RISK_LEVELS, countByLevel, type RiskCounts } fr
 import { OrgChartTree } from "../components/OrgChartTree";
 import { ExportReportsModal } from "../components/ExportReportsModal";
 import { exportDepartmentSkillGaps, type DeptSkillGapExportData } from "../utils/exportReports";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 type SortKey = "name" | "people" | "risk";
 type StatusFilter = "all" | "active" | "inactive";
@@ -58,6 +59,56 @@ const STATUS_TABS: { value: StatusFilter; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
 ];
+
+const CHART_COLORS = ["#2563eb", "#db2777", "#f97316", "#16a34a", "#7c3aed", "#0891b2", "#ca8a04", "#64748b"];
+
+const DepartmentPieCard: React.FC<{
+  title: string;
+  icon: React.ElementType;
+  data: { name: string; value: number }[];
+  color?: string;
+  description?: string;
+}> = ({ title, icon: Icon, data, color, description }) => {
+  const chartData = data.filter((item) => item.value > 0);
+  const total = chartData.reduce((sum, item) => sum + item.value, 0);
+
+  return (
+    <section className="card-raised min-w-0 p-5">
+      <div className="mb-1 flex items-center gap-2">
+        <Icon className={`h-4 w-4 ${color ?? "text-accent"}`} aria-hidden="true" />
+        <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+      </div>
+      {description && <p className="text-[13px] text-ink-2">{description}</p>}
+      <div className="mt-2 grid grid-cols-[minmax(120px,1fr)_minmax(0,1.25fr)] items-center gap-3">
+        <div className="relative h-44 min-w-0" role="img" aria-label={`${title} pie chart`}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={chartData} dataKey="value" nameKey="name" innerRadius="48%" outerRadius="82%" paddingAngle={2}>
+                {chartData.map((entry, index) => (
+                  <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => [Number(value).toLocaleString(), title]} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span className="block text-xl font-semibold tabular-nums text-ink">{total.toLocaleString()}</span>
+            <span className="text-[10px] text-ink-3">total</span>
+          </div>
+        </div>
+        <ul className="min-w-0 space-y-2">
+          {data.map((item, index) => (
+            <li key={item.name} className="flex min-w-0 items-center gap-2 text-xs">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+              <span className="min-w-0 flex-1 text-ink leading-5" title={item.name}>{item.name}</span>
+              <span className="shrink-0 tabular-nums text-ink-2">{item.value}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+};
 
 export const DepartmentsPage: React.FC = () => {
   const { user } = useAuth();
@@ -192,18 +243,6 @@ export const DepartmentsPage: React.FC = () => {
     }
     return { people, atRisk, criticalGaps };
   }, [stats]);
-
-  const maxGaps = Math.max(1, ...departments.map((d) => stats.get(d.id)?.criticalGaps ?? 0));
-  const maxPeople = Math.max(1, ...departments.map((d) => stats.get(d.id)?.people ?? 0));
-  const hotspots = useMemo(
-    () =>
-      departments
-        .filter((d) => (stats.get(d.id)?.atRisk ?? 0) > 0)
-        .sort((a, b) => share(b) - share(a))
-        .slice(0, 5),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [departments, stats],
-  );
 
   const openEditor = (dept: Department | "new") => {
     setEditing(dept);
@@ -412,100 +451,31 @@ export const DepartmentsPage: React.FC = () => {
 
       {/* ── Row 1: Stats panels side-by-side (HR only) ───────────────────── */}
       {isHr && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <section className="card-raised p-5">
-            <h2 className="text-[15px] font-semibold text-ink">Headcount by department</h2>
-            <p className="mb-4 text-[13px] text-ink-2">Share of the largest team.</p>
-            <ul className="space-y-3">
-              {[...departments]
-                .sort((a, b) => (stats.get(b.id)?.people ?? 0) - (stats.get(a.id)?.people ?? 0))
-                .map((d) => {
-                  const n = stats.get(d.id)?.people ?? 0;
-                  return (
-                    <li key={d.id}>
-                      <div className="mb-1 flex justify-between text-[13px]">
-                        <span className="truncate text-ink">{d.name}</span>
-                        <span className="tabular-nums text-ink-2">{n}</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-sunken">
-                        <div
-                          className="grow h-full rounded-full"
-                          style={{
-                            width: `${(n / maxPeople) * 100}%`,
-                            background: "linear-gradient(90deg, var(--accent), #5b8ef0)",
-                          }}
-                        />
-                      </div>
-                    </li>
-                  );
-                })}
-            </ul>
-          </section>
-
-          <section className="card-raised p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <TriangleAlert className="h-4 w-4 text-risk-high" aria-hidden="true" />
-              <h2 className="text-[15px] font-semibold text-ink">Risk hotspots</h2>
-            </div>
-            {hotspots.length === 0 ? (
-              <p className="py-6 text-center text-[13px] text-ink-3">No department has high-risk employees.</p>
-            ) : (
-              <ol className="space-y-3">
-                {hotspots.map((d, i) => {
-                  const s = stats.get(d.id)!;
-                  return (
-                    <li key={d.id}>
-                      <Link
-                        to={`/employees?department=${encodeURIComponent(d.name)}`}
-                        className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-hover"
-                      >
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sunken text-xs font-semibold tabular-nums text-ink-2">
-                          {i + 1}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] font-medium text-ink">{d.name}</span>
-                          <span className="block text-xs text-ink-3">
-                            {s.atRisk} of {s.people} at risk
-                          </span>
-                        </span>
-                        <span className="text-sm font-semibold tabular-nums text-risk-high">
-                          {Math.round(share(d) * 100)}%
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </section>
-
-          <section className="card-raised p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-risk-critical" aria-hidden="true" />
-              <h2 className="text-[15px] font-semibold text-ink">Critical skill gaps</h2>
-            </div>
-            <ul className="space-y-3">
-              {[...departments]
-                .sort((a, b) => (stats.get(b.id)?.criticalGaps ?? 0) - (stats.get(a.id)?.criticalGaps ?? 0))
-                .map((d) => {
-                  const n = stats.get(d.id)?.criticalGaps ?? 0;
-                  return (
-                    <li key={d.id}>
-                      <div className="mb-1 flex justify-between text-[13px]">
-                        <span className="truncate text-ink">{d.name}</span>
-                        <span className="tabular-nums text-ink-2">{n}</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-sunken">
-                        <div
-                          className="grow h-full rounded-full"
-                          style={{ width: `${(n / maxGaps) * 100}%`, background: "var(--risk-critical)" }}
-                        />
-                      </div>
-                    </li>
-                  );
-                })}
-            </ul>
-          </section>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <DepartmentPieCard
+            title="Headcount by department"
+            description="Share of total employees."
+            icon={Building2}
+            data={[...departments]
+              .sort((a, b) => (stats.get(b.id)?.people ?? 0) - (stats.get(a.id)?.people ?? 0))
+              .map((d) => ({ name: d.name, value: stats.get(d.id)?.people ?? 0 }))}
+          />
+          <DepartmentPieCard
+            title="Risk hotspots"
+            icon={TriangleAlert}
+            color="text-risk-high"
+            data={[...departments]
+              .sort((a, b) => (stats.get(b.id)?.atRisk ?? 0) - (stats.get(a.id)?.atRisk ?? 0))
+              .map((d) => ({ name: d.name, value: stats.get(d.id)?.atRisk ?? 0 }))}
+          />
+          <DepartmentPieCard
+            title="Critical skill gaps"
+            icon={Cpu}
+            color="text-risk-critical"
+            data={[...departments]
+              .sort((a, b) => (stats.get(b.id)?.criticalGaps ?? 0) - (stats.get(a.id)?.criticalGaps ?? 0))
+              .map((d) => ({ name: d.name, value: stats.get(d.id)?.criticalGaps ?? 0 }))}
+          />
         </div>
       )}
 
