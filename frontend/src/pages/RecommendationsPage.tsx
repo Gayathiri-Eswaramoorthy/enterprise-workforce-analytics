@@ -961,8 +961,10 @@ export const RecommendationsPage: React.FC = () => {
             </div>
 
             {loading ? (
-              <div className="flex justify-center py-12">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+              <div className="space-y-3 py-4">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="skeleton h-20 w-full rounded-xl" />
+                ))}
               </div>
             ) : rows.length === 0 ? (
               <div className="mt-2 rounded-xl border border-dashed border-rule-strong p-10 text-center">

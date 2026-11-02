@@ -59,8 +59,15 @@ const UsersPage = lazy(() =>
 );
 
 const RouteFallback = () => (
-  <div className="flex h-full w-full items-center justify-center py-24">
-    <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+  <div className="page-enter mx-auto w-full max-w-5xl space-y-4 px-6 py-8">
+    <div className="skeleton h-7 w-48 rounded-lg" />
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="skeleton h-28 rounded-xl" />
+      <div className="skeleton h-28 rounded-xl" />
+      <div className="skeleton h-28 rounded-xl" />
+    </div>
+    <div className="skeleton h-64 rounded-xl" />
+    <div className="skeleton h-48 rounded-xl" />
   </div>
 );
 
