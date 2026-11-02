@@ -268,6 +268,35 @@
   animation: pageEnter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Calm, short entrance for the Attrition Risk dashboard; keep movement subtle on small screens. */
+.predictions-page > * {
+  animation: pageEnter 360ms var(--ease-out-expo) both;
+}
+.predictions-page > *:nth-child(2) { animation-delay: 35ms; }
+.predictions-page > *:nth-child(3) { animation-delay: 70ms; }
+.predictions-page > *:nth-child(4) { animation-delay: 105ms; }
+.predictions-page > *:nth-child(5) { animation-delay: 140ms; }
+.predictions-page > *:nth-child(n + 6) { animation-delay: 175ms; }
+
+.risk-segment {
+  width: 0;
+  animation: riskSegmentIn 820ms var(--ease-out-expo) both;
+}
+@keyframes riskSegmentIn {
+  to { width: var(--segment-size); }
+}
+
+.metric-card {
+  animation: metricSettle 460ms var(--ease-out-expo) both;
+}
+.metric-card:nth-child(2) { animation-delay: 45ms; }
+.metric-card:nth-child(3) { animation-delay: 90ms; }
+.metric-card:nth-child(4) { animation-delay: 135ms; }
+@keyframes metricSettle {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Sorting, filtering and paging reflow the table through a view transition */
 ::view-transition-group(*) {
   animation-duration: 320ms;
@@ -282,7 +311,10 @@
 @media (prefers-reduced-motion: reduce) {
   .grow,
   .sweeping::after,
-  .skeleton {
+  .skeleton,
+  .predictions-page > *,
+  .risk-segment,
+  .metric-card {
     animation: none;
   }
 

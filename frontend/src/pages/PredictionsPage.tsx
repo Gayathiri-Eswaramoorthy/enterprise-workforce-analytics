@@ -55,6 +55,7 @@ import { RiskBadge } from "../components/RiskBadge";
 import { RiskMeter } from "../components/RiskMeter";
 import { RISK_COLOR, RISK_LABEL, RISK_LEVELS, countByLevel } from "../lib/risk";
 import type { RiskCounts } from "../lib/risk";
+import { AnimatedCounter } from "../components/AnimatedCounter";
 
 const PAGE_SIZE = 10;
 const BASELINE = "Normal workforce baseline metrics";
@@ -296,7 +297,7 @@ export const PredictionsPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="predictions-page space-y-6">
       {/* Intro and primary action */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13.5px] text-ink-2">
@@ -426,7 +427,8 @@ export const PredictionsPage: React.FC = () => {
               counts[level] > 0 ? (
                 <span
                   key={level}
-                  style={{ width: `${(counts[level] / Math.max(1, scored)) * 100}%`, background: RISK_COLOR[level] }}
+                  className="risk-segment"
+                  style={{ "--segment-size": `${(counts[level] / Math.max(1, scored)) * 100}%`, background: RISK_COLOR[level] } as React.CSSProperties}
                 />
               ) : null,
             )}
@@ -440,7 +442,7 @@ export const PredictionsPage: React.FC = () => {
                   {RISK_LABEL[level]} risk
                 </p>
                 <p className="mt-1 flex items-baseline gap-2">
-                  <span className="text-[26px] font-semibold leading-none tabular-nums text-ink">{counts[level]}</span>
+                  <span className="text-[26px] font-semibold leading-none tabular-nums text-ink"><AnimatedCounter value={counts[level]} duration={850} /></span>
                   <span className="text-xs tabular-nums text-ink-3">
                     {scored > 0 ? Math.round((counts[level] / scored) * 100) : 0}%
                   </span>
@@ -495,7 +497,8 @@ export const PredictionsPage: React.FC = () => {
                           strokeWidth={2}
                           dot={{ r: 4, fill: RISK_COLOR[level], strokeWidth: 0 }}
                           activeDot={{ r: 5 }}
-                          isAnimationActive={false}
+                          isAnimationActive={!loading}
+                          animationDuration={950}
                         />
                       ))}
                     </LineChart>
@@ -731,7 +734,7 @@ export const PredictionsPage: React.FC = () => {
                     fontSize: 12,
                   }}
                 />
-                <Bar dataKey="count" fill="url(#spread-fill)" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                <Bar dataKey="count" fill="url(#spread-fill)" radius={[4, 4, 0, 0]} isAnimationActive={!loading} animationDuration={850}>
                   <LabelList
                     dataKey="count"
                     position="top"
@@ -955,11 +958,11 @@ const IconBox: React.FC<{ icon: React.ElementType }> = ({ icon: Icon }) => (
 );
 
 const Metric: React.FC<{ icon: React.ElementType; label: string; value: string }> = ({ icon, label, value }) => (
-  <div className="flex items-center gap-4 rounded-lg border border-rule p-4">
+  <div className="metric-card flex items-center gap-4 rounded-lg border border-rule p-4">
     <IconBox icon={icon} />
     <div className="min-w-0">
       <p className="text-[13px] text-ink-2">{label}</p>
-      <p className="text-[26px] font-semibold leading-tight tabular-nums text-ink">{Number(value).toFixed(1)}%</p>
+      <p className="text-[26px] font-semibold leading-tight tabular-nums text-ink"><AnimatedCounter value={Number(value)} decimals={1} suffix="%" duration={850} /></p>
     </div>
   </div>
 );
